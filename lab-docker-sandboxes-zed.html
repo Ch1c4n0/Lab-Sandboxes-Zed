@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratório: Docker Sandboxes + Zed</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#162238; --line:#24324d;
+    --text:#e6ecf5; --muted:#9fb0c9; --blue:#2f8cff; --blue2:#1d63ed;
+    --green:#2ecc8f; --amber:#ffb547; --red:#ff6b6b; --violet:#a78bfa;
+    --code:#0a0f1c; --radius:12px;
+    --mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+    --sans: Inter, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.65;font-size:16px}
+  a{color:var(--blue)}
+  /* layout */
+  .wrap{display:grid;grid-template-columns:280px 1fr;min-height:100vh}
+  nav{position:sticky;top:0;height:100vh;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:22px 16px}
+  nav .brand{font-weight:800;font-size:15px;letter-spacing:.3px;margin-bottom:4px}
+  nav .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
+  nav ol{list-style:none;padding:0;margin:0;counter-reset:n}
+  nav li a{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:8px;color:var(--muted);text-decoration:none;font-size:14px}
+  nav li a:hover{background:var(--panel2);color:var(--text)}
+  nav li a .dot{width:20px;height:20px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:11px;flex:none}
+  nav li a.done .dot{background:var(--green);border-color:var(--green);color:#04210f}
+  .progress{margin:14px 0 18px;background:var(--panel2);border-radius:99px;height:8px;overflow:hidden}
+  .progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--green));transition:width .3s}
+  .ptext{font-size:12px;color:var(--muted)}
+  main{padding:40px clamp(20px,5vw,64px) 120px;max-width:1040px}
+  header.hero{background:linear-gradient(135deg,#123067 0%,#0b1220 70%);border:1px solid var(--line);border-radius:18px;padding:34px;margin-bottom:34px;position:relative;overflow:hidden}
+  header.hero h1{margin:0 0 8px;font-size:clamp(26px,4vw,38px);line-height:1.2}
+  header.hero p{color:#c9d6ea;margin:0 0 16px;max-width:760px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{font-size:12px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.07);border:1px solid var(--line)}
+  section{margin:0 0 56px;scroll-margin-top:20px}
+  h2{font-size:26px;margin:0 0 6px;display:flex;align-items:center;gap:12px}
+  h2 .num{background:var(--blue2);color:#fff;border-radius:10px;font-size:15px;padding:4px 10px}
+  h3{font-size:19px;margin:28px 0 8px}
+  .lead{color:var(--muted);margin-top:0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin:14px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media (max-width:900px){.wrap{grid-template-columns:1fr}nav{position:relative;height:auto}.grid2,.grid3{grid-template-columns:1fr}}
+  /* callouts */
+  .note,.warn,.tip,.why,.rec{border-radius:var(--radius);padding:14px 16px 14px 18px;margin:14px 0;border:1px solid var(--line);border-left-width:5px}
+  .note{background:#0f1d36;border-left-color:var(--blue)}
+  .tip{background:#0e2a22;border-left-color:var(--green)}
+  .warn{background:#2c2111;border-left-color:var(--amber)}
+  .why{background:#1d1733;border-left-color:var(--violet)}
+  .rec{background:#2a1313;border-left-color:var(--red)}
+  .note b:first-child,.tip b:first-child,.warn b:first-child,.why b:first-child,.rec b:first-child{display:block;margin-bottom:2px}
+  /* code */
+  .code{position:relative;margin:12px 0}
+  .code .label{font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;padding:4px 10px;display:inline-block}
+  pre{margin:0;background:var(--code);border:1px solid var(--line);border-radius:0 10px 10px 10px;padding:14px 16px;overflow:auto;font-family:var(--mono);font-size:13.5px;line-height:1.55;color:#d7e3ff}
+  .code.nolabel pre{border-radius:10px}
+  pre .c{color:#6b7fa3}
+  pre .p{color:var(--green);user-select:none}
+  code{font-family:var(--mono);font-size:.9em;background:var(--panel2);border:1px solid var(--line);padding:1px 6px;border-radius:6px}
+  pre code{background:none;border:none;padding:0}
+  .copy{position:absolute;top:30px;right:8px;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:7px;font-size:12px;padding:4px 10px;cursor:pointer}
+  .code.nolabel .copy{top:8px}
+  .copy:hover{background:var(--blue2)}
+  /* steps */
+  .step{display:grid;grid-template-columns:40px 1fr;gap:14px;margin:20px 0}
+  .step .n{width:40px;height:40px;border-radius:50%;background:var(--panel2);border:2px solid var(--blue);display:grid;place-items:center;font-weight:800}
+  .step h4{margin:6px 0 6px;font-size:17px}
+  .expect{font-size:14px;color:var(--muted);border-top:1px dashed var(--line);margin-top:10px;padding-top:8px}
+  .expect b{color:var(--green)}
+  /* check */
+  label.chk{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border-radius:8px;cursor:pointer}
+  label.chk:hover{background:var(--panel2)}
+  label.chk input{margin-top:5px;accent-color:var(--green);width:16px;height:16px}
+  .done-btn{margin-top:14px;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:600}
+  .done-btn.on{background:var(--green);color:#04210f;border-color:var(--green)}
+  table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0}
+  th,td{border:1px solid var(--line);padding:9px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2)}
+  .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:99px;vertical-align:middle}
+  .b-local{background:#123a2b;color:var(--green)}
+  .b-cloud{background:#13284d;color:#8fc0ff}
+  .b-verify{background:#3a2a0d;color:var(--amber)}
+  /* recording timeline */
+  .scene{display:grid;grid-template-columns:110px 1fr;gap:16px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);padding:16px;margin:12px 0}
+  .scene .time{font-family:var(--mono);color:var(--amber);font-weight:700}
+  .scene .tag{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px}
+  .say{background:#0d1526;border-left:3px solid var(--violet);padding:10px 12px;border-radius:8px;font-style:italic;color:#d9d2ff;margin:8px 0}
+  .screen{font-size:14px;color:var(--muted)}
+  .screen b{color:var(--text)}
+  /* seletor de sistema operacional */
+  .osbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:18px}
+  .osbar span{font-size:13px;color:#c9d6ea}
+  .osbtn{background:rgba(255,255,255,.07);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:700;font-size:14px}
+  .osbtn.on{background:var(--blue2);border-color:var(--blue)}
+  nav .osmini{display:flex;gap:6px;margin-bottom:14px}
+  nav .osmini .osbtn{flex:1;padding:6px 8px;font-size:12px}
+  span.os{display:inline}
+  body.os-win .os.unix{display:none}
+  body.os-unix .os.win{display:none}
+  .os.win > .code .label::before{content:"🪟 "}
+  .os.unix > .code .label::before{content:"🍎🐧 "}
+  .real{background:#0c2233;border:1px solid #1f4a6b;border-left:5px solid #38bdf8;border-radius:var(--radius);padding:14px 16px;margin:14px 0}
+  .real b:first-child{display:block;margin-bottom:4px;color:#7dd3fc}
+  svg text{font-family:var(--sans)}
+  footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:18px}
+  kbd{font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--line);border-bottom-width:2px;border-radius:5px;padding:1px 6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav>
+  <div class="brand">🐳 Lab · Sandboxes + Zed</div>
+  <div class="sub">Docker Captains · Nov/2026</div>
+  <div class="progress"><i id="bar"></i></div>
+  <div class="ptext" id="ptext">0 de 0 etapas concluídas</div>
+  <div class="osmini" style="margin-top:14px"><button class="osbtn" data-os="win">🪟 Windows</button><button class="osbtn" data-os="unix">🍎🐧 Mac/Linux</button></div>
+  <ol id="toc"></ol>
+</nav>
+
+<main>
+
+<header class="hero">
+  <h1>Laboratório: programando com o Zed dentro de um Docker Sandbox</h1>
+  <p>O editor fica no seu computador. O código, o terminal, o Docker e o agente de IA ficam presos dentro de uma microVM descartável, primeiro local e depois na nuvem. Este roteiro serve para você executar o laboratório e gravar a aula ao mesmo tempo.</p>
+  <div class="chips">
+    <span class="chip">⏱️ Lab: ~60 min</span>
+    <span class="chip">🎬 Vídeo final: ~15–18 min</span>
+    <span class="chip">🧑‍🎓 Nível: iniciante</span>
+    <span class="chip">💻 macOS · Windows · Linux</span>
+    <span class="chip">🔧 sbx CLI · Zed · SSH · Docker Compose</span>
+  </div>
+  <div class="osbar"><span><b>Qual é o seu sistema?</b> Os comandos mudam conforme a escolha:</span>
+    <button class="osbtn" data-os="win">🪟 Windows (PowerShell)</button>
+    <button class="osbtn" data-os="unix">🍎🐧 macOS / Linux</button>
+  </div>
+</header>
+
+<!-- ============ 0 ============ -->
+<section id="s0" data-title="Visão geral">
+  <h2><span class="num">0</span> O que vamos construir (e por quê)</h2>
+  <p class="lead">Antes de digitar qualquer comando, entenda o "desenho" do laboratório. Isso vira o primeiro minuto da sua aula.</p>
+
+  <div class="card">
+    <svg viewBox="0 0 900 330" width="100%" role="img" aria-label="Arquitetura: Zed local conectado por SSH ao servidor remoto do Zed dentro da sandbox">
+      <rect x="10" y="20" width="270" height="290" rx="14" fill="#111a2e" stroke="#2f8cff" stroke-width="2"/>
+      <text x="30" y="52" fill="#e6ecf5" font-size="17" font-weight="700">💻 Seu computador</text>
+      <rect x="30" y="72" width="230" height="70" rx="10" fill="#162238" stroke="#24324d"/>
+      <text x="45" y="100" fill="#e6ecf5" font-size="15" font-weight="600">Zed (interface)</text>
+      <text x="45" y="122" fill="#9fb0c9" font-size="12.5">só desenha a tela e envia teclas</text>
+      <rect x="30" y="158" width="230" height="60" rx="10" fill="#162238" stroke="#24324d"/>
+      <text x="45" y="184" fill="#e6ecf5" font-size="15" font-weight="600">sbx CLI + ssh</text>
+      <text x="45" y="204" fill="#9fb0c9" font-size="12.5">abre o "túnel" &lt;nome&gt;.sbx</text>
+      <rect x="30" y="234" width="230" height="60" rx="10" fill="#162238" stroke="#24324d"/>
+      <text x="45" y="260" fill="#e6ecf5" font-size="15" font-weight="600">🔑 Chaves de API</text>
+      <text x="45" y="280" fill="#9fb0c9" font-size="12.5">guardadas no keychain do host</text>
+
+      <line x1="282" y1="165" x2="440" y2="165" stroke="#2ecc8f" stroke-width="3" marker-end="url(#a)"/>
+      <line x1="440" y1="185" x2="282" y2="185" stroke="#2ecc8f" stroke-width="3" marker-end="url(#a)"/>
+      <text x="300" y="150" fill="#2ecc8f" font-size="14" font-weight="700">SSH (criptografado)</text>
+      <text x="300" y="210" fill="#9fb0c9" font-size="12">arquivos, terminal, LSP</text>
+      <defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2ecc8f"/></marker></defs>
+
+      <rect x="445" y="20" width="445" height="290" rx="14" fill="#0e2a22" stroke="#2ecc8f" stroke-width="2" stroke-dasharray="7 5"/>
+      <text x="465" y="52" fill="#e6ecf5" font-size="17" font-weight="700">🛡️ Docker Sandbox (microVM)</text>
+      <text x="465" y="72" fill="#9fb0c9" font-size="12.5">kernel próprio · isolada do host · descartável</text>
+      <rect x="465" y="88" width="195" height="62" rx="10" fill="#132f27" stroke="#24324d"/>
+      <text x="478" y="114" fill="#e6ecf5" font-size="14" font-weight="600">Servidor remoto do Zed</text>
+      <text x="478" y="134" fill="#9fb0c9" font-size="12">~/.zed_server</text>
+      <rect x="675" y="88" width="195" height="62" rx="10" fill="#132f27" stroke="#24324d"/>
+      <text x="688" y="114" fill="#e6ecf5" font-size="14" font-weight="600">Terminal + LSPs</text>
+      <text x="688" y="134" fill="#9fb0c9" font-size="12">rodam aqui dentro</text>
+      <rect x="465" y="162" width="195" height="62" rx="10" fill="#132f27" stroke="#24324d"/>
+      <text x="478" y="188" fill="#e6ecf5" font-size="14" font-weight="600">🐳 Docker privado</text>
+      <text x="478" y="208" fill="#9fb0c9" font-size="12">compose up sem tocar o host</text>
+      <rect x="675" y="162" width="195" height="62" rx="10" fill="#132f27" stroke="#24324d"/>
+      <text x="688" y="188" fill="#e6ecf5" font-size="14" font-weight="600">🤖 Agente de IA</text>
+      <text x="688" y="208" fill="#9fb0c9" font-size="12">Claude Code, Codex…</text>
+      <rect x="465" y="236" width="405" height="58" rx="10" fill="#2c2111" stroke="#ffb547"/>
+      <text x="478" y="261" fill="#ffdca3" font-size="14" font-weight="600">🚦 Proxy de rede com política (allow/deny)</text>
+      <text x="478" y="281" fill="#c9b48f" font-size="12">tudo que sai da sandbox passa por aqui</text>
+    </svg>
+  </div>
+
+  <div class="grid2">
+    <div class="why"><b>🧠 Explicando os termos</b>
+      <b style="display:inline">Sandbox</b> = "caixa de areia": um ambiente fechado onde algo pode bagunçar sem estragar o resto.<br>
+      <b style="display:inline">microVM</b> = uma máquina virtual mínima, que liga em segundos e tem o próprio kernel (o "núcleo" do sistema). É mais isolada que um container comum.<br>
+      <b style="display:inline">SSH</b> = um jeito seguro de controlar outro computador pelo terminal. O Zed usa SSH para "entrar" na sandbox.
+    </div>
+    <div class="tip"><b>🎯 A mensagem central da aula</b>
+      "Deixe o agente de IA trabalhar com liberdade total, instalar pacotes, rodar Docker, apagar arquivos, sem arriscar o seu computador. E continue usando o editor rápido que você já gosta."
+    </div>
+  </div>
+
+  <h3>Roteiro do laboratório</h3>
+  <table>
+    <tr><th>Parte</th><th>O que você faz</th><th>Onde roda</th></tr>
+    <tr><td>1–2</td><td>Instala o <code>sbx</code> e o Zed, faz login, escolhe a política de rede</td><td>Seu computador</td></tr>
+    <tr><td>3</td><td>Cria um mini app Node.js com Dockerfile + Compose</td><td>Seu computador</td></tr>
+    <tr><td>4–5</td><td>Cria a sandbox e conecta o Zed por SSH</td><td><span class="badge b-local">LOCAL</span></td></tr>
+    <tr><td>6</td><td>Roda o app com Docker Compose dentro da sandbox</td><td><span class="badge b-local">LOCAL</span></td></tr>
+    <tr><td>7</td><td>Coloca um agente de IA para editar o código, e você acompanha no Zed</td><td><span class="badge b-local">LOCAL</span></td></tr>
+    <tr><td>8</td><td>Repete a conexão numa Cloud Sandbox (crédito de US$ 250)</td><td><span class="badge b-cloud">CLOUD</span></td></tr>
+    <tr><td>9–10</td><td>Limpeza, problemas comuns e feedback para o time do Docker</td><td>—</td></tr>
+    <tr><td>🎬</td><td>Roteiro de gravação cena por cena + checklist</td><td>—</td></tr>
+  </table>
+
+  <div class="note"><b>ℹ️ Um fato honesto para a sua aula</b>
+    A documentação oficial do Docker tem guias prontos para VS Code, Cursor, Claude Desktop, ChatGPT e outros, mas <b>não tem um guia específico do Zed</b> até hoje. A integração funciona porque qualquer editor com "desenvolvimento remoto por SSH" consegue usar o endereço <code>&lt;nome&gt;.sbx</code>. Esse é exatamente o "buraco de conteúdo" que o seu post preenche. Diga isso no vídeo!
+  </div>
+  <button class="done-btn" data-done="s0">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 1 ============ -->
+<section id="s1" data-title="Pré-requisitos">
+  <h2><span class="num">1</span> Pré-requisitos</h2>
+  <p class="lead">Marque cada item. Se algum faltar, a Parte 2 mostra como instalar.</p>
+  <div class="card">
+    <label class="chk"><input type="checkbox" data-k="pre1"> Conta Docker (gratuita), usada no <code>sbx login</code></label>
+    <label class="chk"><input type="checkbox" data-k="pre2"> <b>Zed</b> instalado, versão <b>0.159 ou mais nova</b> (desenvolvimento remoto por SSH)</label>
+    <label class="chk"><input type="checkbox" data-k="pre3"> Cliente SSH: já vem no macOS e no Linux; no Windows, o "OpenSSH Client" (recurso opcional do Windows)</label>
+    <label class="chk"><input type="checkbox" data-k="pre4"> CLI <code>sbx</code> do Docker Sandboxes (instalamos na Parte 2). <b>Não precisa do Docker Desktop.</b></label>
+    <label class="chk"><input type="checkbox" data-k="pre5"> (Parte 7) Uma chave de API da Anthropic <i>ou</i> assinatura Claude, para o agente</label>
+    <label class="chk"><input type="checkbox" data-k="pre6"> (Parte 8) Cadastro no Docker Agentic Platform com cartão, para a nuvem e o crédito promocional</label>
+    <label class="chk"><input type="checkbox" data-k="pre7"> Software de gravação (OBS Studio, ScreenFlow, Camtasia…) testado</label>
+  </div>
+  <div class="warn"><b>⚠️ Comando antigo vs. novo</b>
+    Se você já usou <code>docker sandbox run ...</code> (integrado ao Docker Desktop), saiba que ele está <b>obsoleto</b>. O jeito atual é o CLI independente <code>sbx</code>. Toda esta aula usa <code>sbx</code>.
+  </div>
+  <button class="done-btn" data-done="s1">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2" data-title="Instalar sbx e Zed">
+  <h2><span class="num">2</span> Instalar o <code>sbx</code>, fazer login e escolher a política de rede</h2>
+
+  <div class="step"><div class="n">1</div><div>
+    <h4>Instale o CLI <code>sbx</code></h4>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell)</span><pre><span class="p">PS&gt; </span>winget install Docker.sbx
+<span class="c"># feche e abra o PowerShell de novo para ele enxergar o comando novo</span>
+<span class="p">PS&gt; </span>sbx version</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS (Homebrew)</span><pre><span class="p">$ </span>brew trust docker/tap &amp;&amp; brew install docker/tap/sbx
+<span class="p">$ </span>sbx version</pre></div>
+    <div class="code"><span class="label">Linux (Ubuntu)</span><pre><span class="p">$ </span>curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh
+<span class="p">$ </span>sudo apt-get install docker-sbx
+<span class="p">$ </span>sbx version</pre></div></div>
+    <div class="expect"><b>Esperado:</b> <code>sbx version</code> mostra um número de versão. Para tudo funcionar com SSH, precisa ser <b>0.37.0 ou mais nova</b>; para a parte de nuvem com editor, <b>0.45.0 ou mais nova</b>.</div>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <h4>Faça login com sua conta Docker</h4>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx login</pre></div>
+    <div class="expect"><b>Esperado:</b> o navegador abre, você confirma o login e o terminal diz que você está autenticado.</div>
+    <div class="warn"><b>⚠️ Conta pessoal × organização</b> Os créditos da nuvem (US$ 250) ficam na sua <b>conta pessoal</b>, não na organização. Faça login no <code>sbx</code> com a conta pessoal. Para conferir qual conta está ativa, rode <code>sbx setup ssh</code> e leia a linha <code>signed in as &lt;usuário&gt;</code>. Se estiver errada: <code>sbx logout</code> e depois <code>sbx login</code>.</div>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <h4>Escolha a política de rede padrão</h4>
+    <p>A política de rede é a "portaria" da sandbox: ela decide quais sites o código lá dentro pode acessar. Para a aula, use a <b>Balanced</b> (equilibrada), que é a recomendada.</p>
+    <p><b>Primeira vez usando o sbx:</b> ele já pergunta qual política usar. <b>Se você já escolheu antes</b>, o <code>sbx policy init balanced</code> responde <code>error: global network policy is already initialized</code>. Isso não é problema. Para mostrar a escolha na gravação, resete e escolha de novo:</p>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx policy reset --force</pre></div>
+    <div class="real"><b>📺 O que aparece na tela (saída real)</b>
+<pre>  Stopped daemon
+  Reset policies
+
+  Choose the network policy for sandboxes
+    1. Open   all network traffic allowed, no restrictions
+    2. Balanced   default deny, with common dev sites allowed
+    3. Locked Down   all network traffic blocked unless you allow it
+  Choice [1-3, default 2]: 2
+
+  Set network policy Balanced</pre>
+    Digite <b>2</b> e aperte Enter. As linhas <code>try: ...</code> que aparecem depois são só sugestões de comandos.</div>
+    <div class="warn"><b>⚠️ Cuidado:</b> o reset para o daemon e desliga sandboxes que estiverem rodando. Faça isso <b>antes</b> de criar as sandboxes do laboratório.</div>
+    <p>Agora confira as regras e teste alguns destinos:</p>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx policy ls
+sbx policy check network registry-1.docker.io
+sbx policy check network registry.npmjs.org
+sbx policy check network api.anthropic.com
+sbx policy check network zed.dev</pre></div>
+    <div class="real"><b>📺 Resultado real obtido neste laboratório</b>
+<pre>  POLICY             SOURCE   APPLIES TO   SUMMARY
+  default-deny-all   local    all          network: deny when no rule decides
+  local-policy       local    all          network: 195 allow; ...</pre>
+    <table>
+      <tr><th>Destino</th><th>Resultado</th><th>Regra</th><th>Para que serve no lab</th></tr>
+      <tr><td><code>registry-1.docker.io</code></td><td>✅ Allowed</td><td>default-code-and-containers</td><td>baixar a imagem <code>node:22-alpine</code></td></tr>
+      <tr><td><code>registry.npmjs.org</code></td><td>✅ Allowed</td><td>default-package-managers</td><td>language servers do Node no Zed</td></tr>
+      <tr><td><code>api.anthropic.com</code></td><td>✅ Allowed</td><td>default-ai-services</td><td>o agente Claude Code falar com o modelo</td></tr>
+      <tr><td><code>zed.dev</code></td><td>❌ Denied</td><td>default deny</td><td>o servidor do Zed <b>não</b> consegue se baixar sozinho → por isso usamos <code>upload_binary_over_ssh</code></td></tr>
+    </table>
+    <code>SOURCE: local</code> e <code>Governance: Local policy only</code> significam que quem manda é a sua máquina, não a organização. O número de regras (187, 195…) muda entre versões; tudo bem.</div>
+    <div class="why"><b>🧠 Por que isso importa?</b> Um agente de IA pode ser enganado por um texto malicioso (prompt injection) e tentar enviar seus dados para fora. Com a política de rede, mesmo que ele tente, a sandbox bloqueia. É tudo bloqueado por padrão e só ~190 destinos conhecidos ficam liberados.</div>
+  </div></div>
+
+  <div class="step"><div class="n">4</div><div>
+    <h4>Instale o Zed</h4>
+    <p>Também dá para baixar o instalador em <a href="https://zed.dev/download" target="_blank" rel="noopener">zed.dev/download</a>.</p>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell)</span><pre><span class="p">PS&gt; </span>winget search zed                 <span class="c"># confirme o Id do pacote</span>
+<span class="p">PS&gt; </span>winget install ZedIndustries.Zed
+<span class="p">PS&gt; </span>winget install Git.Git            <span class="c"># traz o git e o "sh" (recomendado)</span>
+<span class="c"># feche e abra o PowerShell, depois confira:</span>
+<span class="p">PS&gt; </span>zed --version
+<span class="p">PS&gt; </span>ssh -V
+<span class="p">PS&gt; </span>where.exe sh</pre></div>
+    <div class="warn"><b>⚠️ Armadilha no Windows</b> O comando <code>curl -f https://zed.dev/install.sh | sh</code> do site do Zed é <b>só para Linux/macOS</b>. No PowerShell ele dá <code>The term 'sh' is not recognized</code>. Use o <code>winget</code>.<br>
+    Se o <code>ssh -V</code> não funcionar: <b>Configurações → Sistema → Recursos opcionais → Adicionar → Cliente OpenSSH</b>.<br>
+    Se o <code>zed</code> não for reconhecido no terminal, abra o Zed pelo Menu Iniciar e use a opção pela interface na Parte 5.</div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS</span><pre><span class="p">$ </span>brew install --cask zed
+<span class="c"># depois, no Zed: menu Zed → "Install CLI" (habilita o comando "zed" no terminal)</span>
+<span class="p">$ </span>zed --version
+<span class="p">$ </span>ssh -V</pre></div>
+    <div class="code"><span class="label">Linux</span><pre><span class="p">$ </span>curl -f https://zed.dev/install.sh | sh
+<span class="p">$ </span>zed --version
+<span class="p">$ </span>ssh -V</pre></div></div>
+    <div class="tip"><b>💡 Para a gravação</b> Mostre a instalação numa linha e corte a espera. O Zed precisa ser <b>0.159 ou mais novo</b>.</div>
+  </div></div>
+
+  <button class="done-btn" data-done="s2">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3" data-title="Projeto de exemplo">
+  <h2><span class="num">3</span> Criar o projeto de exemplo ("Painel do Capitão")</h2>
+  <p class="lead">Um app Node.js minúsculo, <b>sem dependências externas</b> (para não depender de npm), com Dockerfile e Compose. Crie a pasta no seu computador.</p>
+
+  <div class="os win"><div class="code"><span class="label">Windows (PowerShell)</span><pre><span class="p">PS&gt; </span>mkdir $HOME\zed-sandbox-lab -Force
+<span class="p">PS&gt; </span>cd $HOME\zed-sandbox-lab
+<span class="p">PS&gt; </span>pwd   <span class="c"># ex.: C:\Users\seu-nome\zed-sandbox-lab  (ou D:\zed, se preferir outro drive)</span></pre></div>
+  <div class="rec"><b>🔴 Nunca rode o laboratório em <code>C:\WINDOWS\system32</code></b> O PowerShell "como administrador" abre nessa pasta. O <code>sbx create ... .</code> monta <b>a pasta atual</b> dentro da sandbox. Sempre faça <code>cd</code> para a pasta do projeto antes.</div></div>
+  <div class="os unix"><div class="code"><span class="label">macOS / Linux</span><pre><span class="p">$ </span>mkdir -p ~/zed-sandbox-lab &amp;&amp; cd ~/zed-sandbox-lab
+<span class="p">$ </span>pwd   <span class="c"># ex.: /Users/seu-nome/zed-sandbox-lab</span></pre></div></div>
+
+  <div class="note"><b>📁 Por que anotar o caminho?</b> No macOS/Linux, a pasta aparece dentro da sandbox <b>no mesmo caminho absoluto</b>. No Windows, a sandbox é Linux, então <code>C:\...</code> ou <code>D:\...</code> vira outro formato lá dentro. Na Parte 4 você descobre o caminho exato com <code>pwd</code>. É esse caminho que o Zed vai abrir.</div>
+
+  <div class="os win">
+  <h3>Atalho no Windows: criar os 5 arquivos com um script</h3>
+  <p>Em vez de criar arquivo por arquivo, cole este script no PowerShell, <b>dentro da pasta do projeto</b>. Ele grava em UTF-8 sem BOM e com quebras de linha do Linux, o que evita erros dentro da sandbox. Depois disso, pule para a Parte 4. Os arquivos abaixo são o mesmo conteúdo, para você ler e entender.</p>
+  <div class="code"><span class="label">Windows (PowerShell): cria todos os arquivos</span><pre>$lab = (Get-Location).Path
+function Save-File($name, $content) {
+  $utf8 = New-Object System.Text.UTF8Encoding($false)
+  [System.IO.File]::WriteAllText((Join-Path $lab $name), ($content -replace "`r`n", "`n"), $utf8)
+  Write-Host "  criado: $name"
+}
+
+Save-File "server.js" @'
+const http = require("http");
+const PORT = process.env.PORT || 3000;
+const page = `&lt;!doctype html&gt;
+&lt;html lang="pt-BR"&gt;
+&lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;title&gt;Painel do Capitão&lt;/title&gt;
+&lt;style&gt;body{font-family:sans-serif;background:#0b1220;color:#e6ecf5;
+display:grid;place-items:center;height:100vh;margin:0}&lt;/style&gt;&lt;/head&gt;
+&lt;body&gt;&lt;div&gt;
+  &lt;h1&gt;🐳 Painel do Capitão&lt;/h1&gt;
+  &lt;p&gt;Rodando dentro de um Docker Sandbox, editado pelo Zed.&lt;/p&gt;
+&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;`;
+const server = http.createServer((req, res) =&gt; {
+  if (req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    return res.end(page);
+  }
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ erro: "rota não encontrada" }));
+});
+server.listen(PORT, "0.0.0.0", () =&gt; {
+  console.log(`Painel do Capitão ouvindo na porta ${PORT}`);
+});
+'@
+
+Save-File "package.json" @'
+{
+  "name": "painel-do-capitao",
+  "version": "1.0.0",
+  "description": "App de demonstração: Docker Sandboxes + Zed",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "license": "MIT"
+}
+'@
+
+Save-File "Dockerfile" @'
+FROM node:22-alpine
+WORKDIR /app
+COPY package.json server.js ./
+USER node
+EXPOSE 3000
+CMD ["npm", "start"]
+'@
+
+Save-File "compose.yaml" @'
+services:
+  painel:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped
+'@
+
+Save-File ".dockerignore" @'
+node_modules
+.git
+.sbx
+*.log
+'@
+
+Get-ChildItem -Force $lab | Select-Object Name, Length</pre></div>
+  <div class="tip"><b>💡 Usou o VS Code para criar os arquivos?</b> Tudo bem, só confira que todas as abas estão salvas (sem o ● ao lado do nome). Na gravação, feche o VS Code: a aula é sobre o Zed.</div>
+  </div>
+
+  <h3>Arquivo <code>server.js</code></h3>
+  <div class="code"><span class="label">server.js</span><pre>// Servidor web simples usando só o módulo "http" que já vem no Node.js
+const http = require("http");
+
+const PORT = process.env.PORT || 3000;
+
+// HTML da página principal
+const page = `&lt;!doctype html&gt;
+&lt;html lang="pt-BR"&gt;
+&lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;title&gt;Painel do Capitão&lt;/title&gt;
+&lt;style&gt;body{font-family:sans-serif;background:#0b1220;color:#e6ecf5;
+display:grid;place-items:center;height:100vh;margin:0}&lt;/style&gt;&lt;/head&gt;
+&lt;body&gt;&lt;div&gt;
+  &lt;h1&gt;🐳 Painel do Capitão&lt;/h1&gt;
+  &lt;p&gt;Rodando dentro de um Docker Sandbox, editado pelo Zed.&lt;/p&gt;
+&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;`;
+
+const server = http.createServer((req, res) =&gt; {
+  if (req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    return res.end(page);
+  }
+  res.writeHead(404, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ erro: "rota não encontrada" }));
+});
+
+server.listen(PORT, "0.0.0.0", () =&gt; {
+  console.log(`Painel do Capitão ouvindo na porta ${PORT}`);
+});</pre></div>
+
+  <h3>Arquivo <code>package.json</code></h3>
+  <div class="code"><span class="label">package.json</span><pre>{
+  "name": "painel-do-capitao",
+  "version": "1.0.0",
+  "description": "App de demonstração: Docker Sandboxes + Zed",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}</pre></div>
+
+  <h3>Arquivo <code>Dockerfile</code></h3>
+  <div class="code"><span class="label">Dockerfile</span><pre># Imagem oficial e leve do Node.js
+FROM node:22-alpine
+
+# Pasta de trabalho dentro do container
+WORKDIR /app
+
+# Copia os arquivos do projeto
+COPY package.json server.js ./
+
+# Roda como usuário sem privilégios (boa prática de segurança)
+USER node
+
+EXPOSE 3000
+CMD ["npm", "start"]</pre></div>
+
+  <h3>Arquivo <code>compose.yaml</code></h3>
+  <div class="code"><span class="label">compose.yaml</span><pre>services:
+  painel:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    restart: unless-stopped</pre></div>
+
+  <h3>Arquivo <code>.dockerignore</code></h3>
+  <div class="code"><span class="label">.dockerignore</span><pre>node_modules
+.git
+.sbx
+*.log</pre></div>
+
+  <div class="why"><b>🧠 O que cada arquivo faz</b>
+    <code>server.js</code> é o programa (um site de uma página). <code>package.json</code> é a "ficha" do projeto Node. <code>Dockerfile</code> é a receita para empacotar o app numa imagem. <code>compose.yaml</code> diz ao Docker "suba esse serviço na porta 3000". <code>.dockerignore</code> evita copiar lixo para a imagem.
+  </div>
+  <button class="done-btn" data-done="s3">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4" data-title="Criar a sandbox + SSH">
+  <h2><span class="num">4</span> Criar a sandbox e liberar o acesso SSH <span class="badge b-local">LOCAL</span></h2>
+
+  <div class="step"><div class="n">1</div><div>
+    <h4>Configure o SSH do Docker Sandboxes (uma vez só)</h4>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx setup ssh</pre></div>
+    <p>Esse comando liga o serviço do Sandboxes se precisar e escreve um bloco "gerenciado" no seu arquivo de configuração do SSH. A partir daí, toda sandbox vira um endereço <code>&lt;nome&gt;.sbx</code>.</p>
+    <div class="real"><b>📺 Saída real (Windows)</b>
+<pre>  SSH
+    Status:  ● enabled · signed in as &lt;seu-usuario-docker&gt;
+    Access:  *.sbx -> sandboxd.sock (no port · login-gated)
+
+  CONNECT
+    Terminal:     ssh &lt;sandboxname&gt;.sbx
+    File access:  sftp &lt;sandboxname&gt;.sbx
+    Copy files:   scp myfile.txt &lt;sandboxname&gt;.sbx:/path/to/workspace/
+
+  warning: sh is not available on PATH. Claude Desktop runs the SSH
+  ProxyCommand through sh on Windows. Install Git for Windows ...</pre>
+    <b style="display:inline;color:inherit">Está tudo certo.</b> O <code>warning</code> é sobre o <b>Claude Desktop</b>, não sobre o Zed. Instalar o Git for Windows (<code>winget install Git.Git</code>) resolve e ainda traz o <code>git</code>, que você usa na Parte 7.</div>
+    <div class="os win"><div class="code"><span class="label">Windows: ver o bloco gerenciado</span><pre><span class="p">PS&gt; </span>notepad $HOME\.ssh\config</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux: ver o bloco gerenciado</span><pre><span class="p">$ </span>cat ~/.ssh/config</pre></div></div>
+    <div class="real"><b>📺 O que aparece no arquivo (versão atual do sbx, Windows)</b>
+<pre># &gt;&gt;&gt; Docker Sandboxes (managed: default) &gt;&gt;&gt;
+Include "C:/Users/&lt;voce&gt;/AppData/Local/DockerSandboxes/sandboxes/config/ssh/config" "~/.ssh/sandboxes/local-sandboxes/config"
+# &lt;&lt;&lt; Docker Sandboxes (managed: default) &lt;&lt;&lt;</pre>
+    O <code>sbx</code> não escreve as regras direto no seu arquivo: ele usa <code>Include</code> e aponta para dois arquivos dele. As regras de verdade (<code>Host *.sbx</code> e <code>ProxyCommand "sbx" ssh proxy %n</code>) ficam no segundo arquivo.</div>
+    <div class="os win"><div class="code"><span class="label">Windows: ver onde mora o "túnel"</span><pre><span class="p">PS&gt; </span>notepad "$HOME\.ssh\sandboxes\local-sandboxes\config"</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux: ver onde mora o "túnel"</span><pre><span class="p">$ </span>cat ~/.ssh/sandboxes/local-sandboxes/config</pre></div></div>
+    <div class="tip"><b>🎬 Momento bom para a câmera</b> Mostre primeiro o bloco com o <code>Include</code> (<i>"o sbx não bagunça meu arquivo, só aponta para os dele"</i>), depois o arquivo incluído com o <code>Host *.sbx</code> e o <code>ProxyCommand</code> (<i>"é aqui que mora o túnel até a microVM"</i>). Não edite esses blocos à mão.</div>
+    <div class="os win"><div class="rec"><b>🔴 Windows: não use PowerShell "como Administrador"</b> Rode o <code>sbx</code> sempre num PowerShell <b>normal</b>. Arquivos criados como administrador ou herdando permissões de outras contas do PC causam o erro <code>Bad permissions</code> no SSH (veja o passo 3).</div></div>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <h4>Crie uma sandbox do tipo <code>shell</code> com a sua pasta montada</h4>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell), dentro da pasta do projeto</span><pre><span class="p">PS&gt; </span>cd $HOME\zed-sandbox-lab      <span class="c"># ou D:\zed, se seus arquivos estão lá</span>
+<span class="p">PS&gt; </span>sbx create --name zed-lab shell .
+<span class="p">PS&gt; </span>sbx ls</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux, dentro da pasta do projeto</span><pre><span class="p">$ </span>cd ~/zed-sandbox-lab
+<span class="p">$ </span>sbx create --name zed-lab shell .
+<span class="p">$ </span>sbx ls</pre></div></div>
+    <div class="why"><b>🧠 Entendendo o comando</b>
+      <code>create</code> cria sem "entrar" nela. <code>--name zed-lab</code> dá o nome, que vira o endereço <code>zed-lab.sbx</code>. <code>shell</code> é o modelo: um Linux com terminal Bash, sem agente pré-instalado. O <code>.</code> monta a pasta atual dentro da sandbox.
+    </div>
+    <div class="expect"><b>Esperado:</b> <code>sbx ls</code> lista <code>zed-lab</code>. Note que ela <b>não aparece</b> no <code>docker ps</code>: é uma microVM, não um container.</div>
+    <div class="os win"><div class="rec"><b>🔴 Nunca crie a sandbox a partir de <code>C:\WINDOWS\system32</code></b> O <code>.</code> monta a pasta atual. Confira o prompt: ele precisa mostrar a pasta do projeto, por exemplo <code>PS D:\zed&gt;</code>.</div></div>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <h4>Teste o SSH pelo terminal antes de ir para o Zed</h4>
+    <p>Primeiro descubra onde a pasta aparece lá dentro. O <code>sbx exec</code> roda um comando na sandbox <b>sem passar pelo SSH</b>, então funciona mesmo se o SSH ainda der erro:</p>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx exec zed-lab pwd
+sbx exec zed-lab ls
+ssh zed-lab.sbx</pre></div>
+    <p>Já dentro da sandbox (agora é Linux, em qualquer sistema), rode:</p>
+    <div class="code"><span class="label">dentro da sandbox (Linux)</span><pre><span class="p">$ </span>pwd                <span class="c"># onde estou?</span>
+<span class="p">$ </span>ls                 <span class="c"># meus 5 arquivos estão aqui?</span>
+<span class="p">$ </span>uname -n           <span class="c"># nome da máquina: zed-lab</span>
+<span class="p">$ </span>uname -a           <span class="c"># kernel Linux próprio da microVM</span>
+<span class="p">$ </span>docker version     <span class="c"># Docker privado da sandbox (Client + Server)</span>
+<span class="p">$ </span>exit</pre></div>
+    <div class="expect"><b>Esperado:</b> você vê seus 5 arquivos lá dentro, e o <code>docker version</code> responde com cliente e servidor.</div>
+    <div class="note"><b>ℹ️ <code>hostname: command not found</code>?</b> Normal: a imagem <code>shell</code> é mínima, sem o comando <code>hostname</code> e sem o arquivo <code>/etc/hostname</code>. Use <code>uname -n</code>, que mostra <code>zed-lab</code>. O próprio prompt também já prova onde você está: <code>agent@zed-lab:/d/zed$</code>.</div>
+    <div class="os unix"><div class="note"><b>📁 macOS/Linux:</b> a pasta aparece no <b>mesmo caminho</b> do seu computador, por exemplo <code>/Users/seu-nome/zed-sandbox-lab</code>.</div></div>
+    <div class="os win"><div class="real"><b>📁 Windows: o caminho Linux da sua pasta (resultado real)</b>
+    A pasta <code>D:\zed</code> aparece dentro da sandbox como <b><code>/d/zed</code></b>: a letra do drive vira uma pasta minúscula, e as barras viram <code>/</code>. Seguindo a mesma lógica, <code>C:\Users\voce\zed-sandbox-lab</code> deve virar <code>/c/Users/voce/zed-sandbox-lab</code>, mas <b>confirme sempre com <code>pwd</code></b>. Esse é o <code>CAMINHO_NA_SANDBOX</code> que vai no Zed.
+<pre>✓ agent@zed-lab:/d/zed$ uname -n
+zed-lab</pre></div></div>
+
+    <div class="os win"><div class="rec"><b>🔴 Windows: erro <code>Bad permissions</code> no <code>ssh zed-lab.sbx</code></b>
+<pre>Bad permissions. Try removing permissions for user: PC\\outra-conta (S-1-5-...) on file
+C:/Users/&lt;voce&gt;/.ssh/sandboxes/local-sandboxes/config.
+Bad owner or permissions on C:\\Users\\&lt;voce&gt;/.ssh/sandboxes/local-sandboxes/config</pre>
+    <b style="display:inline;color:inherit">Por quê?</b> O SSH do Windows recusa arquivos de configuração que <b>outra conta comum</b> do computador pode ler ou alterar. O <code>icacls</code> mostrou a causa: a conta <code>PC\outra-conta</code> (outra conta do PC) tinha acesso <b>herdado</b> <code>(I)</code> ao arquivo. SYSTEM e Administrators são permitidos.
+    <div class="code"><span class="label">Windows (PowerShell normal): 1) diagnóstico</span><pre><span class="p">PS&gt; </span>whoami
+<span class="p">PS&gt; </span>icacls "$HOME\.ssh\sandboxes\local-sandboxes\config"</pre></div>
+    <div class="code"><span class="label">Windows (PowerShell normal): 2) correção</span><pre><span class="p">PS&gt; </span>$d = "$HOME\.ssh\sandboxes"
+<span class="c"># transforma as permissões herdadas em permissões próprias</span>
+<span class="p">PS&gt; </span>icacls $d /inheritance:d /T
+<span class="c"># remove a outra conta (troque pelo nome que o erro mostrou)</span>
+<span class="p">PS&gt; </span>icacls $d /remove "PC\outra-conta" /T
+<span class="p">PS&gt; </span>icacls "$d\local-sandboxes\config"
+<span class="p">PS&gt; </span>ssh zed-lab.sbx</pre></div>
+    O <code>/T</code> aplica em todos os arquivos da pasta (inclusive os certificados da nuvem, que são criados lá depois). A outra conta só perde acesso a essa pasta, e nada mais muda para ela. Se o erro apontar para outro arquivo (por exemplo, <code>~/.ssh/config</code>), repita os dois comandos <code>icacls</code> nele.</div></div>
+    <div class="note"><b>Regra de ouro:</b> se o <code>ssh zed-lab.sbx</code> não funcionar no terminal, também não vai funcionar no Zed. Sempre teste aqui primeiro.</div>
+  </div></div>
+
+  <button class="done-btn" data-done="s4">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5" data-title="Conectar o Zed">
+  <h2><span class="num">5</span> Conectar o Zed na sandbox <span class="badge b-local">LOCAL</span></h2>
+  <p class="lead">Na primeira conexão, o Zed instala um "servidor remoto" dentro da sandbox. Por padrão ele baixa esse programa direto do zed.dev <b>de dentro da sandbox</b>, e a política de rede pode bloquear. Vamos evitar isso.</p>
+
+  <div class="step"><div class="n">1</div><div>
+    <h4>Adicione a conexão nas configurações do Zed</h4>
+    <p>Abra as configurações do Zed com <span class="os win"><kbd>Ctrl</kbd>+<kbd>,</kbd></span><span class="os unix"><kbd>Cmd</kbd>+<kbd>,</kbd> (macOS) ou <kbd>Ctrl</kbd>+<kbd>,</kbd> (Linux)</span> e acrescente o bloco <code>ssh_connections</code>. <b>Troque o caminho</b> pelo que você anotou na Parte 4.</p>
+    <div class="rec"><b>🔴 Cole nas configurações DO ZED, não num arquivo do projeto</b> As configurações abrem com o atalho acima. Se você criar um <code>settings.json</code> dentro da pasta do projeto (ele aparece na árvore de arquivos), o Zed <b>não lê</b> as conexões SSH dali. Apague esse arquivo do projeto para não confundir quem assiste. Se o seu settings já tem outras opções (tema, fonte), cole só o trecho <code>"ssh_connections": [ ... ]</code> dentro das chaves principais, separado por vírgula.</div>
+    <div class="os win"><div class="note"><b>🪟 Windows:</b> use o caminho <b>Linux</b> que o <code>pwd</code> mostrou dentro da sandbox. Para <code>D:\zed</code> é <code>/d/zed</code>. <b>Nunca</b> use <code>C:\...</code> ou <code>D:\...</code> nem barras invertidas <code>\</code>: o Zed abre a pasta do lado da sandbox, que é Linux.</div></div>
+    <div class="os unix"><div class="note"><b>🍎🐧 macOS/Linux:</b> use o caminho do seu <code>pwd</code>, por exemplo <code>/Users/seu-nome/zed-sandbox-lab</code>.</div></div>
+    <div class="os win"><div class="code"><span class="label">configurações do Zed (Ctrl+,): Windows com a pasta D:\zed</span><pre>{
+  "ssh_connections": [
+    {
+      "host": "zed-lab.sbx",
+      "nickname": "🐳 Sandbox local (zed-lab)",
+      // Baixa o servidor do Zed no SEU computador e envia por SSH.
+      // Obrigatório aqui: a política Balanced bloqueia zed.dev (Denied).
+      "upload_binary_over_ssh": true,
+      "projects": [
+        // D:\zed visto DE DENTRO da sandbox (Linux)
+        { "paths": ["/d/zed"] }
+      ]
+    }
+  ]
+}</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">configurações do Zed (Cmd+, / Ctrl+,): macOS / Linux</span><pre>{
+  "ssh_connections": [
+    {
+      "host": "zed-lab.sbx",
+      "nickname": "🐳 Sandbox local (zed-lab)",
+      // Baixa o servidor do Zed no SEU computador e envia por SSH.
+      // Obrigatório aqui: a política Balanced bloqueia zed.dev (Denied).
+      "upload_binary_over_ssh": true,
+      "projects": [
+        { "paths": ["/Users/seu-nome/zed-sandbox-lab"] }
+      ]
+    }
+  ]
+}</pre></div></div>
+    <div class="note"><b>ℹ️ Por que não tem <code>port_forwards</code>?</b> Na prática, o jeito confiável de abrir a porta 3000 no navegador é o comando oficial <code>sbx ports</code> (Parte 6). Ele funciona com qualquer editor e mantém a liberação explícita.</div>
+    <div class="why"><b>🧠 O que é <code>upload_binary_over_ssh</code>?</b> Normalmente o Zed manda o computador remoto baixar o servidor da internet. Com <code>true</code>, quem baixa é o seu computador, que depois envia pelo SSH. É exatamente o caso de uma sandbox com internet restrita. Mantém a política de rede apertada e a conexão funcionando.</div>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <h4>Abra o projeto remoto</h4>
+    <p><b>Opção A, pela interface (funciona sempre):</b></p>
+    <div class="os win"><p>Abra a paleta de comandos com <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd>, digite <b>"remote projects"</b> e escolha o projeto do <i>🐳 Sandbox local (zed-lab)</i>. Atalho direto: <kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>.</p></div>
+    <div class="os unix"><p>Abra a paleta de comandos com <kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> (macOS) ou <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>P</kbd> (Linux), digite <b>"remote projects"</b> e escolha o projeto do <i>🐳 Sandbox local (zed-lab)</i>. Atalho direto: <kbd>Ctrl</kbd>+<kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> (macOS) ou <kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> (Linux).</p></div>
+    <p><b>Opção B, pelo terminal</b> (bom para o vídeo, porque é rápido). O caminho depois de <code>.sbx</code> é o <code>CAMINHO_NA_SANDBOX</code>, que já começa com <code>/</code>:</p>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell)</span><pre><span class="p">PS&gt; </span>zed "ssh://zed-lab.sbx/d/zed"</pre></div>
+    <div class="warn"><b>⚠️ <code>zed : The term 'zed' is not recognized</code></b> No Windows o instalador nem sempre coloca o comando <code>zed</code> no PATH (a lista de pastas onde o PowerShell procura programas). <b>Use a Opção A</b>, que é o caminho padrão no Windows. Se quiser o comando:
+    <div class="code nolabel"><pre><span class="c"># 1) descobre onde o zed.exe foi instalado</span>
+Get-ChildItem "$env:LOCALAPPDATA\Programs", "$env:ProgramFiles" -Recurse -Filter "zed*.exe" -ErrorAction SilentlyContinue | Select-Object FullName
+<span class="c"># 2) testa pelo caminho completo (troque pelo que apareceu)</span>
+&amp; "C:\Users\SEU_USUARIO\AppData\Local\Programs\Zed\bin\zed.exe" "ssh://zed-lab.sbx/d/zed"
+<span class="c"># 3) adiciona a pasta ao PATH do usuário; depois feche e abra o PowerShell</span>
+$pasta = "C:\Users\SEU_USUARIO\AppData\Local\Programs\Zed\bin"
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path","User") + ";$pasta", "User")</pre></div></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux</span><pre><span class="p">$ </span>zed ssh://zed-lab.sbx/Users/seu-nome/zed-sandbox-lab</pre></div></div>
+    <div class="expect"><b>Esperado:</b> o Zed mostra o progresso "conectando / enviando servidor" e abre a árvore de arquivos. No título aparece <code>zed-lab.sbx · zed</code>, e o terminal se chama <code>zed-lab.sbx — Terminal</code>.</div>
+    <div class="real"><b>📺 O que aconteceu na primeira conexão</b>
+    <ul>
+      <li>A barra inferior mostrou <b>"Downloading yaml-language-server…"</b>: o Zed baixou o "language server" do YAML (cores, autocomplete e checagem de erros) pelo npm, que a política Balanced libera. Em seguida apareceu a navegação <code>compose.yaml › services › painel › restart</code>.</li>
+      <li>Apareceu um aviso para instalar a extensão <b>git-firefly</b> (cores para <code>.dockerignore</code>). É opcional: na gravação, clique em <b>No</b> para a tela ficar limpa.</li>
+    </ul></div>
+    <div class="tip"><b>💡 Não está vendo os arquivos?</b> O painel de arquivos (Project Panel) pode estar escondido. Use <span class="os win"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> (abre o painel) ou <kbd>Ctrl</kbd>+<kbd>B</kbd> (mostra/esconde a barra lateral)</span><span class="os unix"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> / <kbd>Cmd</kbd>+<kbd>B</kbd> no macOS, ou <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> / <kbd>Ctrl</kbd>+<kbd>B</kbd> no Linux</span>, ou clique no primeiro ícone do canto inferior esquerdo. Para abrir um arquivo pelo nome: <span class="os win"><kbd>Ctrl</kbd>+<kbd>P</kbd></span><span class="os unix"><kbd>Cmd</kbd>+<kbd>P</kbd> / <kbd>Ctrl</kbd>+<kbd>P</kbd></span>. Para buscar texto no projeto todo: <span class="os win"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></span><span class="os unix"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></span>.</div>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <h4>Prove que você está DENTRO da sandbox</h4>
+    <p>Abra o terminal integrado do Zed (<kbd>Ctrl</kbd>+<kbd>`</kbd>). Esse terminal roda na sandbox, não no seu computador:</p>
+    <div class="code"><span class="label">terminal integrado do Zed (dentro da sandbox)</span><pre><span class="p">$ </span>uname -n          <span class="c"># zed-lab</span>
+<span class="p">$ </span>whoami            <span class="c"># agent</span>
+<span class="p">$ </span>cat /etc/os-release | head -3</pre></div>
+    <div class="tip"><b>🎬 Truque visual</b> Deixe lado a lado o terminal do seu computador e o terminal do Zed. No seu computador rode <span class="os win"><code>hostname</code> (PowerShell)</span><span class="os unix"><code>hostname</code></span>; no Zed rode <code>uname -n</code>. Nomes diferentes = você está dentro da microVM. (Na sandbox não use <code>hostname</code>: o comando não existe na imagem mínima.)</div>
+  </div></div>
+
+  <div class="warn"><b>⚠️ Se o Zed abrir em <code>/home/agent</code></b> em vez da sua pasta, selecione o caminho correto manualmente. Isso é comum: o seletor de pastas de alguns editores começa na "home" do usuário da sandbox.</div>
+  <button class="done-btn" data-done="s5">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6" data-title="Rodar com Compose">
+  <h2><span class="num">6</span> Rodar o app com Docker Compose dentro da sandbox <span class="badge b-local">LOCAL</span></h2>
+
+  <div class="step"><div class="n">1</div><div>
+    <h4>Suba o serviço pelo terminal do Zed</h4>
+    <div class="code"><span class="label">terminal integrado do Zed (dentro da sandbox)</span><pre><span class="p">$ </span>docker version
+<span class="p">$ </span>docker compose up --build -d
+<span class="p">$ </span>sleep 3
+<span class="p">$ </span>docker compose ps
+<span class="p">$ </span>curl -s localhost:3000 | grep h1</pre></div>
+    <div class="expect"><b>Esperado:</b> <code>docker compose ps</code> mostra o serviço <code>painel</code> com status <b>Up</b>, e o <code>curl</code> devolve <code>&lt;h1&gt;🐳 Painel do Capitão&lt;/h1&gt;</code>. Se o <code>curl</code> não existir na imagem, use <code>docker compose exec painel wget -qO- localhost:3000 | grep h1</code>.</div>
+  </div></div>
+
+  <div class="step"><div class="n">⚠</div><div>
+    <h4>Depuração real: container em <code>Restarting</code></h4>
+    <p>Na primeira tentativa do laboratório, o container ficou num ciclo de reinício e o <code>curl</code> não devolvia nada:</p>
+    <div class="real"><b>📺 Sintoma</b>
+<pre>NAME            IMAGE        SERVICE   STATUS
+zed-painel-1    zed-painel   painel    Restarting (1) 5 seconds ago</pre>
+    <code>Restarting</code> = o app liga, dá erro, fecha, e o Docker reinicia sem parar (por causa do <code>restart: unless-stopped</code>).</div>
+    <div class="code"><span class="label">terminal do Zed: 1) ver o motivo</span><pre><span class="p">$ </span>docker compose logs painel --tail 30</pre></div>
+    <div class="real"><b>📺 Causa encontrada no log</b>
+<pre>npm error code EJSONPARSE
+npm error JSON.parse Invalid package.json: JSONParseError:
+  Unexpected end of JSON input while parsing empty string</pre>
+    O <code>package.json</code> estava <b>vazio</b>: ele tinha sido criado no VS Code e a aba ficou <b>sem salvar</b> (o ● ao lado do nome).</div>
+    <div class="code"><span class="label">terminal do Zed: 2) conferir o tamanho de todos os arquivos (nenhum pode ser 0)</span><pre><span class="p">$ </span>wc -c package.json server.js Dockerfile compose.yaml .dockerignore</pre></div>
+    <p><b>3) Corrigir:</b> abra o <code>package.json</code> no próprio Zed, cole o conteúdo da Parte 3 e salve. Ou recrie pelo terminal:</p>
+    <div class="code"><span class="label">terminal do Zed: recriar o package.json</span><pre>cat &gt; package.json &lt;&lt;'EOF'
+{
+  "name": "painel-do-capitao",
+  "version": "1.0.0",
+  "description": "App de demonstração: Docker Sandboxes + Zed",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
+EOF</pre></div>
+    <div class="code"><span class="label">terminal do Zed: 4) subir de novo</span><pre><span class="p">$ </span>docker compose down
+<span class="p">$ </span>docker compose up --build -d
+<span class="p">$ </span>sleep 3
+<span class="p">$ </span>docker compose ps
+<span class="p">$ </span>curl -s localhost:3000 | grep h1</pre></div>
+    <div class="tip"><b>🎬 Vale gravar esse erro</b> Ele mostra o ciclo completo de depuração (<code>ps</code> → <code>logs</code> → corrige no Zed → sobe de novo), usando as ferramentas de sempre, só que <b>dentro da sandbox</b>. Como <code>D:\zed</code> é uma pasta montada, o arquivo corrigido no Zed também fica corrigido no seu computador.</div>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <h4>A prova do isolamento</h4>
+    <p>Agora, no terminal do <b>seu computador</b> (fora do Zed):</p>
+    <div class="code"><span class="label">terminal do seu computador (Windows, macOS ou Linux)</span><pre>docker ps   # se você tiver Docker Desktop/Engine no host: o container "painel" NÃO aparece</pre></div>
+    <div class="why"><b>🧠 Por quê?</b> Cada sandbox tem um Docker <b>privado</b>. Imagens, containers e volumes criados lá dentro não aparecem no seu Docker e são apagados junto com a sandbox. Um agente pode rodar <code>docker system prune -af</code> lá dentro sem tocar nas suas imagens.</div>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <h4>Abra no navegador</h4>
+    <p>As sandboxes são isoladas na rede: <b>por padrão, nem o seu navegador alcança</b> um servidor que roda dentro de uma delas. Abrir <code>http://localhost:3000</code> direto dá:</p>
+    <div class="real"><b>📺 Sem publicar a porta</b> <code>Não é possível acessar esse site · A conexão com localhost foi recusada · ERR_CONNECTION_REFUSED</code></div>
+    <p>O jeito oficial é publicar a porta com o <code>sbx ports</code>. Rode no terminal do <b>seu computador</b> (fora do Zed):</p>
+    <div class="code"><span class="label">terminal do seu computador (igual no Windows, macOS e Linux)</span><pre>sbx ports zed-lab --publish 3000:3000     # porta do SEU computador : porta da sandbox
+sbx ports zed-lab                         # lista as portas publicadas
+sbx ls                                    # a coluna PORTS também mostra</pre></div>
+    <div class="real"><b>📺 Resultado real</b>
+<pre>  SANDBOX     AGENT    STATUS      PORTS                        WORKSPACE   CREATED
+  zed-agent   claude   ○ stopped                                D:\zed      59s
+  zed-lab     shell    ● running   127.0.0.1:3000-&gt;3000/tcp4    D:\zed      30m</pre>
+    Agora <code>http://localhost:3000</code> abre o "🐳 Painel do Capitão".</div>
+    <div class="note"><b>ℹ️ Variações</b>
+    <ul>
+      <li>Versão nova do CLI: <code>sbx port publish zed-lab 3000:3000</code> e <code>sbx port ls zed-lab</code>.</li>
+      <li>Porta 3000 ocupada no seu computador? Use <code>sbx ports zed-lab --publish 8080:3000</code> e acesse <code>localhost:8080</code>.</li>
+      <li>Para tirar a publicação: <code>sbx ports zed-lab --unpublish 3000:3000</code>.</li>
+      <li>As portas publicadas sobrevivem a reinícios da sandbox e do daemon.</li>
+    </ul>
+    O caminho completo: navegador → <code>localhost:3000</code> → <b><code>sbx ports</code></b> → porta 3000 da sandbox → Docker privado (<code>"3000:3000"</code> do compose) → container <code>painel</code>.</div>
+    <div class="tip"><b>🎬 Fala sugerida</b> "Por padrão, nem o meu navegador enxerga a sandbox. Eu libero só a porta 3000, de forma explícita."</div>
+  </div></div>
+
+  <div class="step"><div class="n">4</div><div>
+    <h4>Edite e veja a mudança</h4>
+    <p>No Zed, mude o texto do <code>&lt;h1&gt;</code> em <code>server.js</code> para <code>🐳 Painel do Capitão: editado no Zed!</code>, salve e rode:</p>
+    <div class="code"><span class="label">terminal integrado do Zed</span><pre><span class="p">$ </span>docker compose up --build -d &amp;&amp; curl -s localhost:3000 | grep h1</pre></div>
+  </div></div>
+
+  <div class="note"><b>ℹ️ Se o build falhar ao baixar <code>node:22-alpine</code></b>
+    Na política Balanced o Docker Hub já vem liberado (regra <code>default-code-and-containers</code>, confirmada na Parte 2), então isso não deve acontecer. Se acontecer na sua máquina, confira e libere <b>só para esta sandbox</b> (igual em todos os sistemas):
+    <div class="code nolabel"><pre>sbx policy check network registry-1.docker.io
+sbx policy allow network --sandbox zed-lab "registry-1.docker.io,auth.docker.io,*.docker.io,*.docker.com"</pre></div>
+  </div>
+  <button class="done-btn" data-done="s6">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7" data-title="Agente de IA">
+  <h2><span class="num">7</span> Colocar um agente de IA para trabalhar, e assistir pelo Zed <span class="badge b-local">LOCAL</span></h2>
+  <p class="lead">Esse é o "momento uau" da aula: o agente roda dentro da microVM com liberdade total, e você acompanha cada arquivo mudando no Zed em tempo real.</p>
+
+  <div class="step"><div class="n">1</div><div>
+    <h4>Escolha como o agente vai acessar o modelo (duas formas documentadas)</h4>
+    <p>Segundo a página oficial <a href="https://docs.docker.com/ai/sandboxes/agents/claude-code/" target="_blank" rel="noopener">Claude Code nas Docker Sandboxes</a> (seção <i>Authentication</i>), o Claude Code precisa de <b>uma chave de API da Anthropic ou de uma assinatura Claude</b>.</p>
+    <div class="note"><b>ℹ️ "Tenho o Claude Desktop, onde pego a chave?"</b> O Claude Desktop <b>não tem uma chave para copiar</b>: ele usa o login da sua conta Claude. Com assinatura, use a <b>Forma A</b> e não precisa de chave nenhuma.</div>
+    <table>
+      <tr><th></th><th>Forma A: assinatura Claude</th><th>Forma B: chave de API</th></tr>
+      <tr><td>Para quem</td><td>Quem assina o Claude (a doc cita Max, Team ou Enterprise)</td><td>Quem tem conta no Console da Anthropic (cobrança por uso, separada da assinatura)</td></tr>
+      <tr><td>Configuração prévia</td><td>Nenhuma</td><td><code>sbx secret set anthropic</code></td></tr>
+      <tr><td>Como entra</td><td><code>/login</code> dentro do Claude Code (OAuth no navegador)</td><td>Automático: o proxy injeta a chave</td></tr>
+      <tr><td>Onde fica a credencial</td><td>O token fica no seu computador, nunca na sandbox</td><td>No cofre (keychain) do seu sistema, nunca na sandbox</td></tr>
+      <tr><td>Funciona na nuvem?</td><td>❌ Não é o caminho documentado</td><td>✅ Com <code>sbx --cloud secret set anthropic</code></td></tr>
+    </table>
+    <h4 style="margin-top:18px">Forma A: assinatura Claude (sem chave)</h4>
+    <p>Pule o <code>sbx secret</code>. Depois de criar a sandbox (passo 2), rode <code>sbx run zed-agent</code>, digite <b><code>/login</code></b> dentro do Claude Code, escolha a conta Claude (assinatura) e conclua no navegador. Se o login reclamar do plano, use a Forma B.</p>
+    <h4 style="margin-top:18px">Forma B: chave de API</h4>
+    <ol>
+      <li>Acesse <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a> (é um cadastro separado do Claude Desktop) e adicione créditos em <b>Billing</b>.</li>
+      <li><b>API Keys → Create Key</b>, dê um nome (ex.: <code>sandbox-zed</code>) e copie a chave na hora: ela começa com <code>sk-ant-</code> e só aparece uma vez.</li>
+      <li>Guarde no <code>sbx</code>:</li>
+    </ol>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx secret set anthropic     # o sbx pede a chave; ela não aparece nem vai para o histórico
+sbx secret ls                # mostra "anthropic (stored)", nunca o valor</pre></div>
+    <div class="why"><b>🧠 Como a credencial chega no agente?</b> Nas duas formas, quando o agente chama a API, o <b>proxy</b> da sandbox coloca a credencial no caminho. Ela nunca fica gravada dentro da microVM: se o agente for "hackeado", ele não consegue ler a sua chave.</div>
+    <div class="rec"><b>🔴 Gravação:</b> NUNCA mostre a chave <code>sk-ant-...</code> nem a tela de login com seu e-mail. Pause a gravação nesses momentos. Se uma chave aparecer num vídeo, apague-a no Console da Anthropic e crie outra.</div>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <h4>Crie uma sandbox com o Claude Code na mesma pasta</h4>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell), dentro da pasta do projeto</span><pre><span class="p">PS&gt; </span>cd $HOME\zed-sandbox-lab      <span class="c"># ou D:\zed</span>
+<span class="p">PS&gt; </span>sbx create --name zed-agent claude .
+<span class="p">PS&gt; </span>sbx ls</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux, dentro da pasta do projeto</span><pre><span class="p">$ </span>cd ~/zed-sandbox-lab
+<span class="p">$ </span>sbx create --name zed-agent claude .
+<span class="p">$ </span>sbx ls</pre></div></div>
+    <div class="expect"><b>Esperado:</b> a <code>zed-agent</code> aparece como <b>○ stopped</b>. Isso é normal: o <code>sbx create</code> só cria, não liga. As duas sandboxes montam a mesma pasta, então o que o agente mudar aparece na hora para a <code>zed-lab</code> e para o Zed.</div>
+    <p><b>Ligue a sandbox e faça o login</b> (Forma A; na Forma B ele já entra direto):</p>
+    <div class="code"><span class="label">terminal do seu computador (igual no Windows, macOS e Linux)</span><pre>sbx run zed-agent      # liga a sandbox e abre o Claude Code
+/login                 # (dentro do Claude Code) só na Forma A
+/exit                  # sai do Claude Code; o login fica guardado no seu computador</pre></div>
+    <p>Depois deixe as <b>duas conexões</b> nas configurações do Zed:</p>
+    <div class="os win"><div class="code"><span class="label">configurações do Zed (Ctrl+,): Windows, pasta D:\zed</span><pre>{
+  "ssh_connections": [
+    {
+      "host": "zed-lab.sbx",
+      "nickname": "🐳 Sandbox local (zed-lab)",
+      "upload_binary_over_ssh": true,
+      "projects": [{ "paths": ["/d/zed"] }]
+    },
+    {
+      "host": "zed-agent.sbx",
+      "nickname": "🤖 Sandbox com agente (zed-agent)",
+      "upload_binary_over_ssh": true,
+      "projects": [{ "paths": ["/d/zed"] }]
+    }
+  ]
+}</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">configurações do Zed: macOS / Linux</span><pre>{
+  "ssh_connections": [
+    {
+      "host": "zed-lab.sbx",
+      "nickname": "🐳 Sandbox local (zed-lab)",
+      "upload_binary_over_ssh": true,
+      "projects": [{ "paths": ["/Users/seu-nome/zed-sandbox-lab"] }]
+    },
+    {
+      "host": "zed-agent.sbx",
+      "nickname": "🤖 Sandbox com agente (zed-agent)",
+      "upload_binary_over_ssh": true,
+      "projects": [{ "paths": ["/Users/seu-nome/zed-sandbox-lab"] }]
+    }
+  ]
+}</pre></div></div>
+    <p>Abra pelo Remote Projects e escolha <i>🤖 Sandbox com agente</i>. Se o Zed não conectar porque a sandbox desligou depois do <code>/exit</code>, rode <code>sbx run zed-agent</code> de novo, deixe essa janela aberta e conecte o Zed.</p>
+    <div class="note"><b>ℹ️ Por que uma segunda sandbox?</b> O modelo <code>claude</code> já vem com o agente instalado e com as regras de rede que ele precisa (por exemplo, <code>api.anthropic.com</code>). A <code>zed-lab</code> continua sendo o seu ambiente "limpo" de comparação. Alternativa: dentro da sandbox <code>shell</code>, você também pode instalar agentes do jeito tradicional.</div>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <h4>Rode o agente no terminal do Zed e dê uma tarefa</h4>
+    <div class="code"><span class="label">terminal integrado do Zed (conectado em zed-agent.sbx)</span><pre><span class="p">$ </span>claude</pre></div>
+    <p>Cole esta tarefa (prompt) para o agente:</p>
+    <div class="code"><span class="label">prompt para o agente</span><pre>Neste projeto Node.js (server.js), adicione:
+1. Uma rota GET /api/health que responde JSON {"status":"ok","uptime":&lt;segundos&gt;}.
+2. Uma rota GET /api/hora que responde a hora atual em America/Sao_Paulo.
+3. Um script "test" no package.json que sobe o servidor e testa as duas rotas com curl.
+Depois rode "docker compose up --build -d" e prove com curl que as rotas funcionam.
+Não adicione dependências do npm.</pre></div>
+    <div class="expect"><b>O que mostrar:</b> divida a tela, com o agente no terminal embaixo e o <code>server.js</code> aberto em cima. O Zed atualiza o arquivo conforme o agente edita. No final, o agente roda Docker <b>dentro</b> da sandbox.</div>
+  </div></div>
+
+  <div class="step"><div class="n">4</div><div>
+    <h4>Revise o que o agente fez</h4>
+    <p>A pasta está montada a partir do seu computador, então as mudanças <b>aparecem no seu disco</b>. Use o painel de Git do Zed ou:</p>
+    <div class="tip"><b>💡 Dica de ouro: faça isto ANTES do passo 3</b> Crie um "ponto de restauração" com o git. Assim o <code>git diff</code> mostra só o que a IA mudou, e você pode desfazer tudo com <code>git checkout .</code>.</div>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell): antes do agente</span><pre><span class="p">PS&gt; </span>cd $HOME\zed-sandbox-lab      <span class="c"># ou D:\zed</span>
+<span class="c"># se "git" não for reconhecido: winget install Git.Git e reabra o PowerShell</span>
+<span class="p">PS&gt; </span>git init
+<span class="p">PS&gt; </span>git add .
+<span class="p">PS&gt; </span>git commit -m "antes do agente"
+<span class="c"># se pedir nome/e-mail: git config --global user.name "Seu Nome"; git config --global user.email "voce@email.com"</span></pre></div>
+    <div class="code"><span class="label">Windows (PowerShell): depois do agente</span><pre><span class="p">PS&gt; </span>git status
+<span class="p">PS&gt; </span>git diff</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux: antes do agente</span><pre><span class="p">$ </span>cd ~/zed-sandbox-lab
+<span class="p">$ </span>git init &amp;&amp; git add . &amp;&amp; git commit -m "antes do agente"</pre></div>
+    <div class="code"><span class="label">macOS / Linux: depois do agente</span><pre><span class="p">$ </span>git status &amp;&amp; git diff</pre></div></div>
+    <div class="note"><b>Quer ainda mais isolamento?</b> O <code>sbx</code> tem o modo <code>--clone</code>, em que a sandbox trabalha numa cópia/branch em vez da sua pasta real. Bom tema para um segundo vídeo.</div>
+  </div></div>
+
+  <div class="card"><b>🧪 Experimento extra (opcional, avalie antes de gravar):</b> o Zed tem um painel de agentes próprio que conversa com agentes externos. Teste se ele funciona numa conexão remota com a sandbox. Se funcionar, é um ótimo bônus; se não, é um ótimo feedback para o time do Docker (Parte 10). <span class="badge b-verify">VERIFICAR</span></div>
+  <button class="done-btn" data-done="s7">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8" data-title="Cloud Sandbox">
+  <h2><span class="num">8</span> Mesma experiência, agora na nuvem <span class="badge b-cloud">CLOUD</span></h2>
+  <p class="lead">A Cloud Sandbox é a mesma microVM, rodando na infraestrutura do Docker. O agente continua trabalhando mesmo com o notebook fechado.</p>
+
+  <div class="card">
+    <b>💰 O crédito de US$ 250 (o ponto que a equipe pediu para divulgar)</b>
+    <ul>
+      <li>Novas contas no <b>Docker Agentic Platform</b> recebem um crédito único de computação de US$ 250 (no lugar do crédito padrão de US$ 25).</li>
+      <li>Precisa de cartão de crédito no cadastro; só é cobrado o uso <b>acima</b> do crédito.</li>
+      <li>O crédito vale por <b>6 meses</b> depois de resgatado e é um por usuário/conta.</li>
+      <li>A cobrança é por segundo, do início ao fim. No tamanho <b>Micro</b> (1 vCPU / 2 GB) custa US$ 0,07/h, ou cerca de 3.570 horas com o crédito.</li>
+      <li>Página da oferta: <a href="https://www.docker.com/c/sbx-promo/" target="_blank" rel="noopener">docker.com/c/sbx-promo</a></li>
+    </ul>
+    <div class="warn" style="margin-bottom:0"><b>⚠️ Confira a data final antes de publicar</b> <span class="badge b-verify">VERIFICAR</span> A página pública mostrava validade até 31/out/2026; o e-mail dos Captains diz que a promoção foi <b>prorrogada por tempo limitado</b>. Confirme a nova data na página da oferta e cite-a no vídeo.</div>
+  </div>
+
+  <div class="step"><div class="n">1</div><div>
+    <h4>Ative o acesso à nuvem e confira os créditos</h4>
+    <p>Abra o <a href="https://agentic-platform.docker.com/" target="_blank" rel="noopener">Console do Docker Agentic Platform</a> com a sua <b>conta pessoal</b> (o Agentic Platform não fica na conta de organização) e conclua o checkout (é por uso, sem mensalidade). Ou clique em <b>Claim credits</b> na faixa azul do site do Docker.</p>
+    <p><b>Onde ver o saldo:</b> <a href="https://app.docker.com/" target="_blank" rel="noopener">app.docker.com</a> → seletor de conta → <b>Your individual account</b> → <b>Billing</b> → <b>Credits</b> → <i>Docker Agentic Platform Compute Credit</i>.</p>
+    <div class="real"><b>📺 O que aconteceu neste laboratório</b>
+    Na conta de <b>organização</b>, Billing mostrava só Docker Business e AI Governance, sem créditos. Na conta <b>pessoal</b>, antes do claim: <code>$0.00 · No grants</code>. Depois do claim: <code>$250.00 available</code>. 🎬 Grave o antes e o depois.</div>
+  </div></div>
+
+  <div class="step"><div class="n">2</div><div>
+    <h4>Crie uma sandbox na nuvem pelo Console</h4>
+    <ol>
+      <li>No Console, clique em <b>+ New sandbox</b>.</li>
+      <li>Escolha <b>shell</b>, desmarque credenciais salvas e ferramentas MCP.</li>
+      <li>Em rede, selecione <b>Open</b>, para que o editor consiga baixar o que precisa.</li>
+      <li>No terminal do navegador da sandbox, clone o exemplo oficial:</li>
+    </ol>
+    <div class="code"><span class="label">terminal da sandbox na nuvem</span><pre><span class="p">$ </span>git clone https://github.com/docker/welcome-to-docker.git /home/agent/workspace/project</pre></div>
+    <div class="note"><b>ℹ️ Diferença importante:</b> na nuvem <b>não existe pasta montada</b> do seu computador. Os arquivos vivem só lá e não sincronizam. O projeto fica em <code>/home/agent/workspace/project</code>.</div>
+    <div class="rec"><b>⏱️ A sandbox na nuvem expira em ~1 hora</b> Por padrão, as Cloud Sandboxes <b>expiram depois de uma hora e são apagadas</b>, junto com os arquivos que só existem nela. Por isso: <b>crie a sandbox só na hora de gravar</b> esta parte, e copie para fora o que quiser guardar. No vídeo, isso vira argumento: <i>"ela se apaga sozinha, então não tem como esquecer uma sandbox ligada gastando crédito"</i>.</div>
+    <div class="note"><b>ℹ️ Agente na nuvem:</b> para rodar o Claude Code numa Cloud Sandbox, o caminho documentado é a <b>chave de API</b> (<code>sbx --cloud secret set anthropic</code>). As credenciais locais (e o <code>/login</code> da assinatura) não são levadas para a nuvem. Este laboratório usa a sandbox <b>shell</b>, que não precisa de chave.</div>
+  </div></div>
+
+  <div class="step"><div class="n">3</div><div>
+    <h4>Configure o SSH da nuvem e descubra o ID</h4>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx login                     # com a conta PESSOAL (a que tem os créditos)
+sbx --cloud setup ssh
+sbx --cloud ls                # copie o ID que começa com sbx_
+ssh sbx_SEU_ID@sbx_cloud      # teste; "exit" para sair</pre></div>
+    <div class="real"><b>📺 Antes de criar a sandbox no Console</b>
+<pre>  No sandboxes found
+    try: sbx --cloud run claude</pre>
+    Isso é normal: o login e o acesso à nuvem funcionam, só não existe nenhuma sandbox ainda. Depois do passo 2, o ID aparece aqui.</div>
+    <div class="real"><b>📺 Saída real, depois de criar a sandbox</b>
+<pre>PS D:\zed&gt; sbx login
+  You are signed in [username: &lt;seu-usuario-docker&gt;]
+    Governance:  Not active; sandboxes use local policies
+
+PS D:\zed&gt; sbx --cloud setup ssh
+  Configured SSH
+    Connect with:  ssh sbx_&lt;id&gt;@sbx_cloud
+
+PS D:\zed&gt; sbx --cloud ls
+  SANDBOX        AGENT   ID                                STATUS      CREATED
+  shell/x4mun9   shell   sbx_0123456789ab   ● running   1m</pre>
+    A linha <code>Governance: Not active</code> confirma que a política da organização não está interferindo.</div>
+    <div class="warn"><b>⚠️ Use o ID, não o nome.</b> Na nuvem o endereço SSH é <code>&lt;ID&gt;@sbx_cloud</code> (ex.: <code>sbx_0123456789ab@sbx_cloud</code>), diferente do <code>&lt;nome&gt;.sbx</code> local. O nome <code>shell/x4mun9</code> não funciona no SSH.</div>
+    <div class="real"><b>📺 Primeira conexão: "reconnect to continue"</b>
+<pre>PS D:\zed&gt; ssh sbx_0123456789ab@sbx_cloud
+  error: SSH certificate issued for sbx_0123456789ab — reconnect to continue
+Connection closed by UNKNOWN port 65535</pre>
+    <b style="display:inline;color:inherit">Não é um problema.</b> Na primeira conexão, o <code>sbx</code> emite um <b>certificado SSH temporário</b> só para essa sandbox (um "crachá") e encerra a conexão. <b>Rode o mesmo <code>ssh</code> de novo</b> e você entra. Se o erro se repetir no Windows, é a permissão da pasta <code>.ssh\sandboxes</code>: repita a correção com <code>icacls</code> da Parte 4.
+    <br>🎬 Fala: <i>"Nada de chave SSH permanente espalhada pelo computador: um certificado temporário só para essa sandbox."</i></div>
+    <div class="code"><span class="label">dentro da sandbox na nuvem (depois de reconectar)</span><pre><span class="p">$ </span>uname -n
+<span class="p">$ </span>ls /home/agent/workspace
+<span class="p">$ </span>exit</pre></div>
+  </div></div>
+
+  <div class="step"><div class="n">4</div><div>
+    <h4>Conecte o Zed na nuvem</h4>
+    <div class="code"><span class="label">configurações do Zed (acrescente na lista ssh_connections, separado por vírgula)</span><pre>{
+  "host": "sbx_cloud",
+  "username": "sbx_SEU_ID",          // ex.: sbx_0123456789ab
+  "nickname": "☁️ Cloud Sandbox",
+  "projects": [
+    { "paths": ["/home/agent/workspace/project"] }
+  ]
+}</pre></div>
+    <div class="note"><b>ℹ️ E o <code>upload_binary_over_ssh</code>?</b> Aqui não é necessário: a sandbox foi criada com a rede <b>Open</b> no Console, e a política da nuvem é separada da local.</div>
+    <p>Ou direto pelo terminal:</p>
+    <div class="os win"><div class="code"><span class="label">Windows (PowerShell)</span><pre><span class="p">PS&gt; </span>zed "ssh://sbx_SEU_ID@sbx_cloud/home/agent/workspace/project"</pre></div></div>
+    <div class="os unix"><div class="code"><span class="label">macOS / Linux</span><pre><span class="p">$ </span>zed ssh://sbx_SEU_ID@sbx_cloud/home/agent/workspace/project</pre></div></div>
+    <div class="note"><b>ℹ️</b> Aqui o caminho é sempre <code>/home/agent/workspace/project</code>, em qualquer sistema, porque na nuvem não há pasta montada do seu computador.</div>
+    <div class="expect"><b>Esperado:</b> o título do Zed mostra <code>sbx_cloud · project · main</code> (inclusive o branch do git), e o terminal se chama <code>sbx_cloud — Terminal</code>, com o prompt <code>agent@sbx-…:project$</code>.</div>
+    <div class="tip"><b>💡 Tela vazia, sem arquivos?</b> O painel de arquivos está escondido. Use <span class="os win"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> ou <kbd>Ctrl</kbd>+<kbd>B</kbd></span><span class="os unix"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> ou <kbd>Cmd</kbd>+<kbd>B</kbd> (Linux: <kbd>Ctrl</kbd>)</span>. Aparecem <code>.github</code>, <code>public</code>, <code>src</code>, <code>Dockerfile</code>, <code>package.json</code>, <code>README.md</code> e o resto.</div>
+  </div></div>
+
+  <div class="step"><div class="n">5</div><div>
+    <h4>Faça o build e rode o app na nuvem</h4>
+    <div class="code"><span class="label">terminal integrado do Zed (na nuvem)</span><pre><span class="p">$ </span>cd /home/agent/workspace/project
+<span class="p">$ </span>docker build -t welcome-to-docker .
+<span class="p">$ </span>docker run -d --name welcome-to-docker -p 3000:3000 welcome-to-docker
+<span class="p">$ </span>docker ps</pre></div>
+    <div class="real"><b>📺 Resultado real</b>
+<pre>=&gt; [7/7] RUN npm ci &amp;&amp; npm install -g serve@latest &amp;&amp; npm run build ...   27.8s
+=&gt; exporting to image                                                      7.5s
+=&gt; =&gt; naming to docker.io/library/welcome-to-docker:latest                 0.0s
+agent@sbx-…:project$ docker run -d --name welcome-to-docker -p 3000:3000 welcome-to-docker
+0d2f57d23638d024a3f8f69373a2510c81a999f57a0c69c5efc790ff06bdfd94</pre>
+    O número longo é o ID do container: ele subiu.</div>
+    <h4 style="margin-top:18px">Edite algo que aparece na tela</h4>
+    <div class="warn"><b>⚠️ Cuidado com o arquivo certo</b> O <code>&lt;title&gt;</code> de <code>public/index.html</code> só muda o texto da <b>aba</b> do navegador, não a página. Para uma mudança visível, use <span class="os win"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd></span><span class="os unix"><kbd>Cmd</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> (Linux: <kbd>Ctrl</kbd>)</span> (buscar no projeto), procure o texto principal da página dentro de <code>src</code> (por exemplo, <code>Congratulations</code>), mude, salve e refaça o build:</div>
+    <div class="code"><span class="label">terminal integrado do Zed (na nuvem)</span><pre><span class="p">$ </span>docker rm -f welcome-to-docker
+<span class="p">$ </span>docker build -t welcome-to-docker .
+<span class="p">$ </span>docker run -d --name welcome-to-docker -p 3000:3000 welcome-to-docker</pre></div>
+  </div></div>
+
+  <div class="step"><div class="n">6</div><div>
+    <h4>Abra no navegador: onde está o "Connect"</h4>
+    <p>O <b>Connect</b> não fica no Zed. Ele está no <b>Console web</b>:</p>
+    <ol>
+      <li>Abra <a href="https://agentic-platform.docker.com/" target="_blank" rel="noopener">agentic-platform.docker.com</a> com a conta pessoal.</li>
+      <li>Na lista, clique na sua sandbox (ex.: <code>shell/x4mun9</code>) para abrir a <b>página de detalhes</b>.</li>
+      <li>Clique no botão <b>Connect</b> da página de detalhes.</li>
+      <li>Em <b>Connect via a Port</b>, digite <b>3000</b> e clique em <b>Open Port</b>.</li>
+      <li>Abre o endereço público da porta 3000 com a página "Welcome to Docker".</li>
+    </ol>
+    <p><b>Alternativa pelo terminal</b> (se não achar o botão):</p>
+    <div class="code"><span class="label">terminal do seu computador (igual no Windows, macOS e Linux)</span><pre>sbx --cloud port publish sbx_SEU_ID 3000</pre></div>
+    <div class="rec"><b>🔴 Segurança:</b> o endereço público da porta <b>não é protegido pelo login do Docker</b>: quem tiver o link acessa. Para este app de exemplo tudo bem, mas não deixe o link muito tempo no vídeo e remova a sandbox no final.</div>
+  </div></div>
+
+  <div class="step"><div class="n">7</div><div>
+    <h4>Desligue e mostre quanto custou</h4>
+    <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx --cloud ls
+sbx --cloud rm sbx_SEU_ID</pre></div>
+    <div class="rec"><b>🔴 Atenção:</b> o Docker cobra computação por segundo enquanto a sandbox está ligada, <b>mesmo com o Zed desconectado</b>. Remover apaga os arquivos que só existem lá.</div>
+    <div class="tip"><b>🎬 Fechamento da Parte 8</b> Volte em <b>app.docker.com → conta pessoal → Billing → Credits → Docker Agentic Platform Compute Credit</b> e mostre o saldo depois da aula inteira. Deve ter consumido poucos centavos dos US$ 250. Isso vende muito bem a oferta.</div>
+  </div></div>
+
+  <button class="done-btn" data-done="s8">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="s9" data-title="Limpeza e problemas">
+  <h2><span class="num">9</span> Limpeza e solução de problemas</h2>
+  <h3>Limpeza do ambiente local</h3>
+  <div class="code"><span class="label">terminal (igual no Windows, macOS e Linux)</span><pre>sbx ls
+sbx rm zed-lab zed-agent      # apaga as sandboxes, com imagens e containers de dentro
+sbx setup ssh remove          # (opcional) remove o bloco gerenciado da config do SSH</pre></div>
+  <p>Os arquivos da pasta do projeto continuam no seu computador, porque eram uma pasta montada.</p>
+
+  <h3>Problemas comuns</h3>
+  <table>
+    <tr><th>Sintoma</th><th>Causa provável</th><th>O que fazer</th></tr>
+    <tr><td><code>Host key verification failed</code> ou erro de <code>KnownHostsCommand</code></td><td>Bloco SSH duplicado ou corrompido no <code>~/.ssh/config</code></td><td>Apague todos os blocos marcados <code>docker sandboxes (managed)</code> (com os comentários) e rode <code>sbx setup ssh</code> de novo.</td></tr>
+    <tr><td>Zed fica parado em "downloading server"</td><td>A sandbox não acessa zed.dev</td><td>Confirme <code>"upload_binary_over_ssh": true</code> na conexão.</td></tr>
+    <tr><td>Zed abre em <code>/home/agent</code></td><td>Seletor de pasta começa na home</td><td>Escolha o caminho absoluto da Parte 3 (local) ou <code>/home/agent/workspace</code> (sem pasta montada).</td></tr>
+    <tr><td>Linguagem sem autocomplete (LSP)</td><td>O Zed tenta baixar o servidor de linguagem e a rede bloqueia</td><td>Veja o domínio bloqueado e libere só para a sandbox: <code>sbx policy allow network --sandbox zed-lab DOMINIO</code>.</td></tr>
+    <tr><td>Regra de "allow" não tem efeito</td><td>Sua organização aplica política central (governance)</td><td>Regras locais ficam inativas; peça ao admin para ajustar.</td></tr>
+    <tr><td><code>docker: 'sandbox' is not a docker command</code></td><td>Tutorial antigo</td><td>Use <code>sbx</code> no lugar de <code>docker sandbox</code>.</td></tr>
+    <tr><td>🪟 <code>The term 'sh' is not recognized</code></td><td>Comando de Linux/macOS (<code>curl ... | sh</code>) rodado no PowerShell</td><td>Use <code>winget install ZedIndustries.Zed</code>. Para ter o <code>sh</code>: <code>winget install Git.Git</code>.</td></tr>
+    <tr><td>🪟 <code>warning: sh is not available on PATH</code> no <code>sbx setup ssh</code></td><td>Afeta só o Claude Desktop</td><td>Para o Zed, pode ignorar. Para resolver: instale o Git for Windows e adicione <code>C:\Program Files\Git\bin</code> ao PATH; confira com <code>where.exe sh</code>.</td></tr>
+    <tr><td>🪟 <code>ssh</code> não é reconhecido</td><td>Cliente OpenSSH não instalado</td><td>Configurações → Sistema → Recursos opcionais → Adicionar → <b>Cliente OpenSSH</b>.</td></tr>
+    <tr><td>🪟 Zed não acha a pasta do projeto</td><td>Caminho Windows (<code>C:\</code>, <code>D:\</code>) no <code>settings.json</code></td><td>Use o caminho <b>Linux</b> mostrado por <code>pwd</code> dentro da sandbox.</td></tr>
+    <tr><td><code>global network policy is already initialized</code></td><td>Política já escolhida antes</td><td>Não é erro. Para escolher de novo: <code>sbx policy reset --force</code>.</td></tr>
+    <tr><td>Créditos aparecem como <code>$0.00 · No grants</code></td><td>Agentic Platform não ativado nessa conta, ou você está na organização</td><td>Troque para a conta pessoal e clique em <b>Claim credits</b>.</td></tr>
+    <tr><td>🪟 <code>Bad permissions ... on file C:/Users/.../.ssh/sandboxes/local-sandboxes/config</code></td><td>Outra conta do PC tem acesso herdado <code>(I)</code> à pasta, ou o <code>sbx</code> foi rodado como Administrador</td><td>PowerShell normal: <code>icacls "$HOME\.ssh\sandboxes" /inheritance:d /T</code> e <code>icacls "$HOME\.ssh\sandboxes" /remove "PC\outra-conta" /T</code>. Detalhes na Parte 4.</td></tr>
+    <tr><td>🪟 <code>zed : The term 'zed' is not recognized</code></td><td>O comando <code>zed</code> não foi para o PATH</td><td>Abra pela interface: <kbd>Alt</kbd>+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd> (Remote Projects). Ou adicione a pasta do <code>zed.exe</code> ao PATH (Parte 5).</td></tr>
+    <tr><td><code>bash: hostname: command not found</code></td><td>Imagem <code>shell</code> mínima</td><td>Use <code>uname -n</code>.</td></tr>
+    <tr><td>Container em <code>Restarting (1)</code></td><td>O app quebra ao iniciar</td><td><code>docker compose logs painel --tail 30</code> para ver o motivo.</td></tr>
+    <tr><td><code>npm error code EJSONPARSE ... parsing empty string</code></td><td><code>package.json</code> vazio (aba não salva no editor)</td><td>Recrie o arquivo (Parte 6), confira com <code>wc -c</code> e rode <code>docker compose down</code> e <code>up --build -d</code>.</td></tr>
+    <tr><td>Navegador: <code>ERR_CONNECTION_REFUSED</code> em <code>localhost:3000</code></td><td>Porta da sandbox não publicada (isolamento de rede)</td><td><code>sbx ports zed-lab --publish 3000:3000</code> (ou <code>sbx port publish zed-lab 3000:3000</code>).</td></tr>
+    <tr><td>Conexões SSH do Zed não aparecem</td><td><code>settings.json</code> salvo dentro da pasta do projeto</td><td>Cole o bloco nas configurações do Zed (<kbd>Ctrl</kbd>+<kbd>,</kbd>) e apague o arquivo do projeto.</td></tr>
+    <tr><td>Zed conectado, mas sem arquivos na tela</td><td>Painel de arquivos escondido</td><td><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> ou <kbd>Ctrl</kbd>+<kbd>B</kbd> (no macOS, <kbd>Cmd</kbd>).</td></tr>
+    <tr><td>Cloud: <code>SSH certificate issued for sbx_... — reconnect to continue</code></td><td>Primeira conexão: emissão do certificado temporário</td><td>Rode o mesmo <code>ssh</code> de novo.</td></tr>
+    <tr><td>Cloud: não acho o botão <b>Connect</b></td><td>Ele fica no Console web, não no Zed</td><td>agentic-platform.docker.com → clique na sandbox → <b>Connect</b> → porta 3000 → <b>Open Port</b>. Ou <code>sbx --cloud port publish sbx_ID 3000</code>.</td></tr>
+    <tr><td>Cloud: a sandbox sumiu</td><td>Expiração padrão de ~1 hora</td><td>Crie de novo só na hora de gravar; copie para fora o que quiser guardar.</td></tr>
+    <tr><td>"Tenho Claude Desktop, cadê a chave?"</td><td>O Desktop usa login, não chave de API</td><td>Local: <code>/login</code> dentro do Claude Code (assinatura). Nuvem: crie a chave em console.anthropic.com.</td></tr>
+    <tr><td>Agente sem acesso ao modelo</td><td>Credencial não configurada (SSH não leva chave)</td><td><code>sbx secret set anthropic</code>. Em sandbox que já existia: <code>sbx secret set anthropic --sandbox zed-agent</code>.</td></tr>
+  </table>
+  <button class="done-btn" data-done="s9">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10" data-title="Feedback ao Docker">
+  <h2><span class="num">10</span> Anote o que funcionou e o que não funcionou</h2>
+  <p class="lead">A equipe pediu feedback real. Preencha enquanto faz o laboratório; isso vira um parágrafo do post e um e-mail para o time.</p>
+  <div class="card">
+    <label class="chk"><input type="checkbox" data-k="fb1"> Conexão SSH local do Zed funcionou de primeira? Quanto tempo levou a 1ª conexão?</label>
+    <label class="chk"><input type="checkbox" data-k="fb2"> <code>upload_binary_over_ssh</code> foi necessário? Sem ele, qual domínio foi bloqueado?</label>
+    <label class="chk"><input type="checkbox" data-k="fb3"> Porta: o <code>port_forwards</code> do Zed não foi o caminho; o <code>sbx ports</code> funcionou. Vale documentar isso para editores remotos.</label>
+    <label class="chk"><input type="checkbox" data-k="fb8"> Windows: <code>Bad permissions</code> no SSH quando outra conta do PC herda acesso à pasta <code>.ssh\sandboxes</code>. O <code>sbx setup ssh</code> poderia ajustar as permissões sozinho.</label>
+    <label class="chk"><input type="checkbox" data-k="fb9"> Windows: o aviso "sh is not available on PATH" aparece mesmo para quem não usa o Claude Desktop.</label>
+    <label class="chk"><input type="checkbox" data-k="fb10"> A imagem <code>shell</code> não tem <code>hostname</code>: pequena surpresa em tutoriais.</label>
+    <label class="chk"><input type="checkbox" data-k="fb11"> Cloud: o "reconnect to continue" na primeira conexão SSH pode assustar; uma mensagem mais explicativa ajudaria.</label>
+    <label class="chk"><input type="checkbox" data-k="fb12"> Pasta montada no Windows aparece como <code>/d/zed</code>: vale documentar esse formato nas docs de integração.</label>
+    <label class="chk"><input type="checkbox" data-k="fb4"> Language servers (TypeScript/Node) instalaram com a política <code>balanced</code>?</label>
+    <label class="chk"><input type="checkbox" data-k="fb5"> O painel de agentes do Zed funcionou numa conexão remota com a sandbox?</label>
+    <label class="chk"><input type="checkbox" data-k="fb6"> Conexão na nuvem (<code>ID@sbx_cloud</code>) se comportou igual à local?</label>
+    <label class="chk"><input type="checkbox" data-k="fb7"> Sugestão: um guia oficial "Connect Zed to a sandbox" nas docs (hoje há VS Code, Cursor…)</label>
+  </div>
+  <textarea id="notes" placeholder="Suas anotações livres (ficam salvas neste navegador)..." style="width:100%;min-height:120px;background:var(--code);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font-family:var(--sans);font-size:14px"></textarea>
+  <button class="done-btn" data-done="s10">Marcar parte como concluída</button>
+</section>
+
+<!-- ============ 11 GRAVAÇÃO ============ -->
+<section id="s11" data-title="🎬 Roteiro de gravação">
+  <h2><span class="num">🎬</span> Roteiro de gravação, cena por cena</h2>
+  <p class="lead">Faça o laboratório inteiro <b>uma vez sem gravar</b> (ensaio). Depois grave seguindo as cenas abaixo. Tempo final estimado: 15–18 minutos.</p>
+
+  <h3>Checklist antes de apertar REC</h3>
+  <div class="grid2">
+    <div class="card">
+      <b>🖥️ Tela e ferramentas</b>
+      <label class="chk"><input type="checkbox" data-k="rc1"> Resolução 1920×1080; feche notificações (modo "Não perturbe")</label>
+      <label class="chk"><input type="checkbox" data-k="rc2"> Fonte do Zed e do terminal em 18–20 pt</label>
+      <label class="chk"><input type="checkbox" data-k="rc3"> Prompt do terminal curto (ex.: <code>PS1='$ '</code>)</label>
+      <label class="chk"><input type="checkbox" data-k="rc4"> Tema escuro igual no Zed e no terminal</label>
+      <label class="chk"><input type="checkbox" data-k="rc5"> Abas do navegador: docs do Sandboxes, página da oferta, localhost:3000</label>
+    </div>
+    <div class="card">
+      <b>🔒 Segurança e preparo</b>
+      <label class="chk"><input type="checkbox" data-k="rc6"> Chave de API já salva com <code>sbx secret set</code> (fora da gravação)</label>
+      <label class="chk"><input type="checkbox" data-k="rc7"> Nada sensível no <code>~/.ssh/config</code> além do bloco do sbx (ou use outro usuário do sistema)</label>
+      <label class="chk"><input type="checkbox" data-k="rc8"> Imagem <code>node:22-alpine</code> testada no ensaio</label>
+      <label class="chk"><input type="checkbox" data-k="rc9"> Cloud Sandbox <b>NÃO</b> criada com antecedência: ela expira em ~1 hora. Crie na hora da Parte 8.</label>
+      <label class="chk"><input type="checkbox" data-k="rc11"> 🪟 PowerShell <b>normal</b> (não administrador), aberto na pasta do projeto</label>
+      <label class="chk"><input type="checkbox" data-k="rc12"> <code>ssh zed-lab.sbx</code> testado (sem "Bad permissions")</label>
+      <label class="chk"><input type="checkbox" data-k="rc13"> Todos os arquivos do projeto salvos (<code>wc -c</code> sem zeros); <code>settings.json</code> fora da pasta do projeto</label>
+      <label class="chk"><input type="checkbox" data-k="rc14"> Login do Claude (<code>/login</code>) feito antes, fora da câmera</label>
+      <label class="chk"><input type="checkbox" data-k="rc10"> Commit "antes do agente" feito no projeto</label>
+    </div>
+  </div>
+
+  <div class="tip"><b>💡 Configuração sugerida no OBS Studio</b>
+    Cena 1 "Tela cheia" (captura de tela + microfone). Cena 2 "Tela + webcam" (webcam no canto inferior direito, 20% da largura). Gravação em MKV (não corrompe se travar), depois "Remux para MP4". Taxa de quadros 30 fps; para tela, isso basta. Grave cada cena como um arquivo separado: errou, regrave só aquela.
+  </div>
+
+  <div class="scene"><div><div class="time">00:00–01:00</div><div class="tag">Abertura</div></div><div>
+    <div class="screen"><b>Tela:</b> você na webcam + slide/título "Zed + Docker Sandboxes".</div>
+    <div class="say">"Agentes de IA são incríveis… até apagarem a pasta errada ou instalarem algo estranho no seu computador. Hoje eu vou mostrar como usar o Zed, um editor super rápido, programando dentro de uma microVM do Docker Sandboxes, primeiro no meu notebook e depois na nuvem."</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">01:00–02:30</div><div class="tag">Conceito</div></div><div>
+    <div class="screen"><b>Tela:</b> o diagrama da Parte 0 deste lab.</div>
+    <div class="say">"O Zed só desenha a interface aqui no meu computador. Arquivos, terminal, Docker e o agente rodam dentro da sandbox, que tem kernel próprio e um proxy de rede que decide o que pode sair. A ligação entre os dois é SSH."</div>
+    <div class="screen">Mencione: a documentação oficial tem guias para VS Code e Cursor, mas ainda não para o Zed. "Este vídeo é esse guia."</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">02:30–04:00</div><div class="tag">Instalação</div></div><div>
+    <div class="screen"><b>Tela:</b> terminal. Rode <code>sbx version</code> e <code>sbx login</code> (pode cortar a parte do navegador). <b>Fora da câmera</b>, antes da cena, não rode nada depois do último reset. Na câmera: <code>sbx policy reset --force</code> → menu com 3 opções → digite <b>2</b> → <code>sbx policy ls</code> → <code>sbx policy check network api.anthropic.com</code> (Allowed) → <code>sbx policy check network zed.dev</code> (<b>Denied</b>).</div>
+    <div class="say">"Não precisa do Docker Desktop: é só o CLI sbx. Open libera tudo, Locked Down bloqueia tudo, e eu vou de Balanced: bloqueia por padrão e libera uns 190 destinos de desenvolvimento. A API da IA está liberada… mas até o site do próprio Zed é bloqueado. Guarda isso, que daqui a pouco faz sentido."</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">04:00–05:30</div><div class="tag">Projeto + sandbox</div></div><div>
+    <div class="screen"><b>Tela:</b> mostre rápido os 5 arquivos do projeto (pode usar um <code>ls</code> e <code>cat compose.yaml</code>). Depois <code>sbx setup ssh</code>, abra o <code>~/.ssh/config</code> e destaque o bloco gerenciado. Rode <code>sbx create --name zed-lab shell .</code> e <code>sbx ls</code>.</div>
+    <div class="say">"Cada sandbox vira um endereço nome-ponto-sbx. Então para o Zed ela é só mais um servidor SSH."</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">05:30–07:30</div><div class="tag">Zed conecta</div></div><div>
+    <div class="screen"><b>Tela:</b> <code>ssh zed-lab.sbx</code> → <code>uname -a</code> → <code>exit</code>. Abra o settings.json do Zed e mostre o bloco <code>ssh_connections</code>, com <b>zoom</b> em <code>upload_binary_over_ssh</code>. Rode <code>zed ssh://zed-lab.sbx/…</code>.</div>
+    <div class="say">"Esse detalhe aqui é o pulo do gato: em vez de a sandbox baixar o servidor do Zed da internet, meu computador baixa e envia por SSH. A rede da sandbox continua fechada."</div>
+    <div class="screen"><b>Prova:</b> <code>hostname</code> no terminal do host e <code>uname -n</code> no terminal do Zed, lado a lado.</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">07:30–09:30</div><div class="tag">Docker dentro</div></div><div>
+    <div class="screen"><b>Tela:</b> terminal do Zed: <code>docker compose up --build -d</code>, <code>docker compose ps</code>, <code>curl localhost:3000</code>. (Opcional: mostre um <code>Restarting</code> + <code>docker compose logs</code> como depuração.) Navegador em localhost:3000 <b>falhando</b> (ERR_CONNECTION_REFUSED) → no host, <code>sbx ports zed-lab --publish 3000:3000</code> → recarrega e abre. <code>sbx ls</code> mostrando a coluna PORTS. No host: <code>docker ps</code> vazio.</div>
+    <div class="say">"Repare: o container está rodando, mas o Docker do meu computador nem sabe que ele existe. É um Docker privado, que some junto com a sandbox."</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">09:30–12:30</div><div class="tag">Momento uau: agente</div></div><div>
+    <div class="screen"><b>Tela:</b> <code>sbx secret ls</code> (só mostra "(stored)", sem o valor). Zed conectado em <code>zed-agent.sbx</code>, split: <code>server.js</code> em cima, <code>claude</code> no terminal embaixo. Cole o prompt da Parte 7.</div>
+    <div class="say">"Minha chave nunca entra na sandbox: o proxy injeta ela no caminho. E agora eu posso deixar o agente trabalhar sem pedir permissão para cada comando, porque o pior que ele consegue fazer é estragar uma microVM descartável."</div>
+    <div class="screen"><b>Edição:</b> acelere 2–4× o trecho em que o agente "pensa". Termine com <code>git diff</code> mostrando as rotas novas e o <code>curl /api/health</code>.</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">12:30–15:30</div><div class="tag">Nuvem + US$ 250</div></div><div>
+    <div class="screen"><b>Tela:</b> página da oferta (destaque: US$ 250, 6 meses, cobrança por segundo). Tela de Credits na conta pessoal (<code>$250.00 available</code>). Console → <b>+ New sandbox</b> → shell, rede Open (crie agora: ela expira em ~1 h). Terminal: <code>sbx --cloud setup ssh</code>, <code>sbx --cloud ls</code>, <code>ssh ID@sbx_cloud</code> (mostre o "reconnect to continue" e conecte de novo). Zed abre <code>ID@sbx_cloud</code> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd> para mostrar os arquivos). Edite um texto visível em <code>src</code>, faça build/run, e no Console: sandbox → <b>Connect</b> → 3000 → <b>Open Port</b>.</div>
+    <div class="say">"É a mesma microVM, só que na infraestrutura do Docker. Eu fecho o notebook e o agente continua. E quem cria conta agora ganha 250 dólares de crédito, que no tamanho menor dá mais de três mil horas."</div>
+    <div class="screen"><b>Obrigatório:</b> mostre o <code>sbx --cloud rm</code> no final ("não esqueçam de desligar").</div>
+  </div></div>
+
+  <div class="scene"><div><div class="time">15:30–17:00</div><div class="tag">Fechamento</div></div><div>
+    <div class="screen"><b>Tela:</b> webcam + resumo em 3 tópicos.</div>
+    <div class="say">"Resumo: um, sbx setup ssh transforma qualquer sandbox em servidor SSH. Dois, no Zed, use upload_binary_over_ssh. Três, deixe o agente livre dentro da caixa, não no seu computador. O link do laboratório completo e da oferta de 250 dólares está na descrição. Me conta nos comentários: você usaria isso com qual agente?"</div>
+  </div></div>
+
+  <h3>Pós-produção e publicação</h3>
+  <div class="grid3">
+    <div class="card"><b>✂️ Edição</b><br>Corte silêncios longos e logins. Acelere downloads e builds. Faça zoom (125–150%) em toda configuração JSON. Legenda em PT-BR (gerar automático e revisar).</div>
+    <div class="card"><b>🖼️ Thumbnail</b><br>Logo do Zed + baleia do Docker + cadeado. Texto curto: "IA SEM MEDO" ou "Zed + Sandbox". Respeite as diretrizes de marca, já que a nova marca do Docker está chegando.</div>
+    <div class="card"><b>📝 Post / blog</b><br>Título sugerido: "Como usar Docker Sandboxes com o Zed (local e na nuvem)". Use as Partes 4–8 como corpo, o diagrama como imagem e a Parte 10 como seção "O que aprendi".</div>
+  </div>
+  <div class="note"><b>📬 Próximo passo com o Docker</b> Se quiser publicar no blog do Docker, coloque seu nome ao lado do tema "Sandboxes com Zed" no guia de conteúdo e envie o rascunho do post para o time do Docker. Se preferir, publique nos seus próprios canais.</div>
+  <button class="done-btn" data-done="s11">Marcar parte como concluída</button>
+</section>
+
+<footer>
+  <p><b>Fontes oficiais usadas neste laboratório</b> (confira antes de gravar, porque o produto muda rápido):<br>
+  <a href="https://docs.docker.com/ai/sandboxes/" target="_blank" rel="noopener">Docker Sandboxes, docs</a> ·
+  <a href="https://docs.docker.com/ai/sandboxes/integrations/" target="_blank" rel="noopener">Editor and app integrations (SSH)</a> ·
+  <a href="https://docs.docker.com/ai/sandboxes/cloud/usage/" target="_blank" rel="noopener">Use cloud sandboxes</a> ·
+  <a href="https://docs.docker.com/agentic-platform/guides/remote-development/" target="_blank" rel="noopener">Develop remotely in a cloud sandbox</a> ·
+  <a href="https://docs.docker.com/reference/cli/sbx/policy/allow/network/" target="_blank" rel="noopener">sbx policy allow network</a> ·
+  <a href="https://docs.docker.com/ai/sandboxes/security/credentials/" target="_blank" rel="noopener">Credenciais</a> ·
+  <a href="https://docs.docker.com/ai/sandboxes/agents/claude-code/" target="_blank" rel="noopener">Claude Code nas Sandboxes (autenticação)</a> ·
+  <a href="https://docs.docker.com/ai/sandboxes/workflows/development/" target="_blank" rel="noopener">Develop and test locally (sbx ports)</a> ·
+  <a href="https://docs.docker.com/reference/cli/sbx/port/publish/" target="_blank" rel="noopener">sbx port publish</a> ·
+  <a href="https://docs.docker.com/ai/sandboxes/cloud/" target="_blank" rel="noopener">Cloud sandboxes (expiração)</a> ·
+  <a href="https://docs.docker.com/agentic-platform/sandboxes/" target="_blank" rel="noopener">Agentic Platform: Connect</a> ·
+  <a href="https://docs.docker.com/subscription-billing/manage/" target="_blank" rel="noopener">Billing e Credits</a> ·
+  <a href="https://zed.dev/docs/remote-development" target="_blank" rel="noopener">Zed Remote Development</a> ·
+  <a href="https://www.docker.com/c/sbx-promo/" target="_blank" rel="noopener">Oferta US$ 250</a></p>
+  <p>Itens marcados <span class="badge b-verify">VERIFICAR</span> não têm documentação oficial específica para o Zed: valide no ensaio.</p>
+</footer>
+
+</main>
+</div>
+
+<script>
+(function(){
+  // armazenamento seguro (funciona mesmo se o navegador bloquear localStorage)
+  const mem = {};
+  const store = {
+    get(k){ try { return localStorage.getItem(k); } catch(e){ return mem[k] ?? null; } },
+    set(k,v){ try { localStorage.setItem(k,v); } catch(e){ mem[k]=v; } }
+  };
+  const P = "lab-sbx-zed:";
+
+  // seletor de sistema operacional (padrão: detecta pelo navegador)
+  function setOS(os){
+    document.body.classList.remove("os-win","os-unix");
+    document.body.classList.add("os-"+os);
+    document.querySelectorAll(".osbtn").forEach(b=>b.classList.toggle("on", b.dataset.os===os));
+    store.set(P+"os", os);
+  }
+  const guess = /Win/i.test(navigator.platform || navigator.userAgent) ? "win" : "unix";
+  setOS(store.get(P+"os") || guess);
+  document.querySelectorAll(".osbtn").forEach(b=>b.addEventListener("click",()=>setOS(b.dataset.os)));
+
+  // monta o sumário lateral
+  const sections = [...document.querySelectorAll("main section")];
+  const toc = document.getElementById("toc");
+  sections.forEach((s,i)=>{
+    const li = document.createElement("li");
+    const label = s.id === "s11" ? "🎬" : i;
+    li.innerHTML = `<a href="#${s.id}" data-sec="${s.id}"><span class="dot">${label}</span>${s.dataset.title}</a>`;
+    toc.appendChild(li);
+  });
+
+  function refresh(){
+    let done = 0;
+    sections.forEach(s=>{
+      const on = store.get(P+"done:"+s.id) === "1";
+      if(on) done++;
+      const btn = s.querySelector(".done-btn");
+      if(btn){ btn.classList.toggle("on",on); btn.textContent = on ? "✓ Parte concluída" : "Marcar parte como concluída"; }
+      const a = toc.querySelector(`a[data-sec="${s.id}"]`);
+      if(a) a.classList.toggle("done",on);
+    });
+    document.getElementById("bar").style.width = (done/sections.length*100)+"%";
+    document.getElementById("ptext").textContent = `${done} de ${sections.length} etapas concluídas`;
+  }
+  document.querySelectorAll(".done-btn").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const k = P+"done:"+b.dataset.done;
+      store.set(k, store.get(k)==="1" ? "0" : "1");
+      refresh();
+    });
+  });
+
+  // checkboxes persistentes
+  document.querySelectorAll("input[type=checkbox][data-k]").forEach(c=>{
+    c.checked = store.get(P+"chk:"+c.dataset.k) === "1";
+    c.addEventListener("change",()=>store.set(P+"chk:"+c.dataset.k, c.checked?"1":"0"));
+  });
+
+  // anotações
+  const notes = document.getElementById("notes");
+  notes.value = store.get(P+"notes") || "";
+  notes.addEventListener("input",()=>store.set(P+"notes",notes.value));
+
+  // botões de copiar
+  document.querySelectorAll(".code").forEach(box=>{
+    const pre = box.querySelector("pre");
+    const btn = document.createElement("button");
+    btn.className = "copy"; btn.type = "button"; btn.textContent = "Copiar";
+    btn.addEventListener("click", async ()=>{
+      // remove prompts "$ " e "> " ao copiar
+      const clone = pre.cloneNode(true);
+      clone.querySelectorAll(".p").forEach(p=>p.remove());
+      const text = clone.innerText.trim();
+      try { await navigator.clipboard.writeText(text); }
+      catch(e){
+        const ta = document.createElement("textarea"); ta.value = text;
+        document.body.appendChild(ta); ta.select();
+        try{ document.execCommand("copy"); }catch(_){}
+        ta.remove();
+      }
+      btn.textContent = "Copiado ✓";
+      setTimeout(()=>btn.textContent="Copiar",1500);
+    });
+    box.appendChild(btn);
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
